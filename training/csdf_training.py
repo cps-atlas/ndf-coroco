@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from torch.nn.utils import clip_grad_norm_
+
 
 '''
 training without eikonal constrainy
@@ -8,7 +10,8 @@ training without eikonal constrainy
 
 def train(net, dataloader, val_dataloader, num_epochs, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.1):
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, weight_decay=1e-5)
+    
 
     net.to(device)
 
@@ -23,7 +26,10 @@ def train(net, dataloader, val_dataloader, num_epochs, learning_rate, device, lo
             outputs = net(inputs)
             loss = criterion(outputs, targets)
             loss.backward()
+
+
             optimizer.step()
+            clip_grad_norm_(net.parameters(), max_norm=1.0)  # Gradient clipping
 
             running_loss += loss.item()
 

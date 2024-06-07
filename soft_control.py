@@ -11,36 +11,6 @@ from training.config import *
 from control.clf_qp import ClfQpController
 from control.clf_cbf_qp import ClfCbfController
 
-def evaluate_model_sdf(net, rbt_config, obstacle_point):
-    # Prepare the input tensor
-    configurations = torch.from_numpy(rbt_config).float().unsqueeze(0)
-    points = torch.from_numpy(obstacle_point).float().unsqueeze(0)
-    inputs = torch.cat((configurations, points), dim=1)
-    inputs.requires_grad = True
-
-    # Forward pa    net.eval()
-    outputs = net(inputs)
-
-
-    # Compute the gradients using back-propagation
-    gradients = []
-    for i in range(outputs.shape[1]):
-        gradients.append(torch.autograd.grad(outputs[0, i], inputs, retain_graph=True)[0])
-    gradients = torch.cat(gradients, dim=0)
-
-
-    # Extract the distances, gradients w.r.t robot configuration, and gradients w.r.t obstacle point
-    distances = outputs.detach().numpy().flatten()
-
-    
-    link_gradients = gradients[ :, :len(rbt_config)].detach().numpy()
-    obst_gradients = gradients[ :, len(rbt_config):].detach().numpy()
-
-    print('distance:', distances)
-    print('gradient:', gradients)
-
-    return distances, link_gradients, obst_gradients
-
 
 
 def evaluate_model(net, rbt_config, obstacle_points):
@@ -81,21 +51,6 @@ def evaluate_model(net, rbt_config, obstacle_points):
 
     return distances, link_gradients, obst_gradients
 
-# def compute_cbf_value_and_grad(net, rbt_config, obstacle_point, obstacle_velocity):
-#     # Compute the distances and gradients from each link to the obstacle point
-#     link_distances, link_gradients, obst_gradients = evaluate_model(net, rbt_config, obstacle_point)
-
-#     # Find the minimum distance across all links
-#     min_index = np.argmin(link_distances)
-
-
-#     cbf_h_val = link_distances[min_index]
-#     cbf_h_grad = link_gradients[min_index]
-
-#     # Compute the CBF time derivative (cbf_t_grad)
-#     cbf_t_grad = obst_gradients[min_index] @ obstacle_velocity
-
-#     return cbf_h_val, cbf_h_grad, cbf_t_grad
 
 def compute_cbf_value_and_grad(net, rbt_config, obstacle_points, obstacle_velocities):
     # Compute the distances and gradients from each link to each obstacle point
@@ -207,7 +162,7 @@ def main(net, obstacle_position, obstacle_velocity, goal_point, dt, control_mode
 
         if mode == 'clf_cbf':
             
-            goal_plot, = ax.plot(goal_point[0]-0.1, goal_point[1]+0.1, marker='*', markersize=15, color='blue', label = 'Goal')
+            goal_plot, = ax.plot(goal_point[0], goal_point[1], marker='*', markersize=15, color='blue', label = 'Goal')
             legend_elements.append(goal_plot)
             # Plot the obstacles
             obstacle_plot = None
@@ -260,7 +215,7 @@ if __name__ == '__main__':
 
     # load the learned C-SDF model
     net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS)
-    net.load_state_dict(torch.load("trained_models/baseline_3_more_data.pth"))
+    net.load_state_dict(torch.load("trained_models/baseline_4_more_data.pth"))
 
     # simulate the control performance
     main(net, obstacle_positions, obstacle_velocities, goal_point, dt,control_mode)

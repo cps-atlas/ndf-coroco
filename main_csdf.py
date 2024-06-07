@@ -21,7 +21,7 @@ def main():
 
     # Create dataset and data loaders
     dataset = SoftRobotDataset(configurations, points, distances)
-    train_size = int(0.9 * len(dataset))
+    train_size = int(0.999 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     train_dataloader = DataLoader(train_dataset, BATCH_SIZE, shuffle=True)
@@ -30,13 +30,16 @@ def main():
     # Create neural network
     net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS)
 
+    # training with pre-trained weights
+    net.load_state_dict(torch.load("trained_models/baseline_3_more_data.pth"))
+
     # Set the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    device = torch.device("cpu")
+    # device = torch.device("cpu")
 
     # Train the model
-    net = train(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.005, lambda_eikonal=0.1)
+    net = train(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal=0.1)
 
     # Save the trained model
     torch.save(net.state_dict(), "trained_model_no_eikonal.pth")

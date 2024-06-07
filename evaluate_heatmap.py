@@ -54,7 +54,7 @@ def plot_csdf_heatmap(configuration, distances, x_range, y_range, nominal_length
 def main():
     # Load the trained model
     net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS)
-    net.load_state_dict(torch.load("baseline_3.pth"))
+    net.load_state_dict(torch.load("trained_models/baseline_4_more_data.pth"))
     net.eval()
 
     # Define the region of interest
@@ -67,7 +67,7 @@ def main():
     right_base = np.array([0.15, 0.0])
 
     # Define the configuration to evaluate
-    configuration = np.array([1.1, 1.1, 1.0, 1.05])
+    configuration = np.array([0.9, 0.9, 0.9, 0.9])
 
     # Evaluate the signed distance values
     distances = evaluate_csdf(net, configuration, x_range, y_range, resolution=200)
