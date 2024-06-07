@@ -78,6 +78,8 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
     # Define a list of colors for each link
     colors = ['r', 'g', 'b', 'c', 'm', 'y']
 
+    legend_elements = []
+
     # Iterate over the link lengths and plot each link
     for i, left_length in enumerate(link_lengths):
         # Calculate the current link
@@ -89,7 +91,10 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
         y_coords = np.concatenate((left_coords[:, 1], right_coords[:, 1]))
 
         # Plot the deformed link
-        ax.fill(x_coords, y_coords, colors[i % len(colors)], alpha=0.3, edgecolor=colors[i % len(colors)], linewidth=2, label=f'Link {i+1}')
+        fill = ax.fill(x_coords, y_coords, colors[i % len(colors)], alpha=0.4, edgecolor=colors[i % len(colors)], linewidth=3, label=f'Link {i+1}')
+        
+        # Collect legend entry for the current link
+        legend_elements.append(fill[0])
 
         # Update the base points for the next link
         left_base = left_end
@@ -97,11 +102,20 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
 
     ax.set_xlim(-2.5, 4)
     ax.set_ylim(0.0, len(link_lengths) * nominal_length + 0.5)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_title('Multiple Link Deformation')
-    ax.legend()
+    # Increase font size for axis labels
+    ax.set_xlabel('X', fontsize=20)
+    ax.set_ylabel('Y', fontsize=20)
+    
+    # Increase font size for axis numbers
+    ax.tick_params(axis='both', which='major', labelsize=18)
+    
+    # Increase font size for legend
+    ax.legend(fontsize=18)
+    #ax.set_title('Multiple Link Deformation')
+
     ax.set_aspect('equal')
+
+    return legend_elements
 
 
 def main():

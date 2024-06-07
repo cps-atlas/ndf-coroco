@@ -36,7 +36,7 @@ def main():
     device = torch.device("cpu")
 
     # Train the model
-    net = train(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-3, lambda_eikonal=0.1)
+    net = train(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.005, lambda_eikonal=0.1)
 
     # Save the trained model
     torch.save(net.state_dict(), "trained_model_no_eikonal.pth")

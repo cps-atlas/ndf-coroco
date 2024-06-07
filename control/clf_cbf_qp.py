@@ -2,7 +2,7 @@ import numpy as np
 import cvxpy as cp
 
 class ClfCbfController:
-    def __init__(self, p1=1e0, p2=1e2, clf_rate=1.0, cbf_rate=0.5):
+    def __init__(self, p1=1e0, p2=1e2, clf_rate=1.0, cbf_rate=3.0):
         # -------- optimizer parameters ---------
         # Control Lipschitz penalty
         self.p1 = p1
@@ -22,47 +22,59 @@ class ClfCbfController:
 
         self.ref_u = np.ones(4) * 0.1
 
-    def generate_controller(self, rbt_config, goal_config, cbf_h_val, cbf_h_grad, cbf_t_grad):
+    def generate_controller(self, rbt_config, cbf_h_val, cbf_h_grad, cbf_t_grad, sdf_val, sdf_grad):
         """
         This function generates control input (left edge length) for a N-link 2D continuum arm using CLF-CBF-QP method
         """
         num_links = len(rbt_config)
+
+        num_obstacles = len(cbf_h_val)
         
         if self.prev_u is None:
             self.prev_u = np.zeros(num_links)
 
-        # -------- Clf ---------
-        V = 0.5 * np.sum((rbt_config - goal_config) ** 2)
 
+        # -------- CLF ---------
+        V = 0.5 * sdf_val ** 2
+        dV_dtheta = sdf_val * sdf_grad
 
-        dV_dtheta = rbt_config - goal_config
+        print('lyapunov value:', V)
 
         # -------- control input ---------
         u = cp.Variable(num_links)
         delta = cp.Variable()
 
-        print('barrier value:', cbf_h_val)
+        # assume obstacle radiance of 0.2
+        print('barrier value:', cbf_h_val - 0.2)
+
+
         # print('barrier grad:', cbf_h_grad)
         # print('time derivative:', cbf_t_grad)
         
         # formulate clf-cbf-qp constraints
         constraints = [
-            #dV_dtheta.T @ u + self.rateV * V <= delta,
-            cbf_h_grad @ u + cbf_t_grad + self.rateh * cbf_h_val  >= 0,
+            dV_dtheta @ u + self.rateV * V <= delta,
+            #cbf_h_grad @ u + cbf_t_grad + self.rateh * (cbf_h_val - 0.1)  >= 0,
             delta >= 0.0,
-            cp.abs(u) <= 0.5
+            cp.abs(u) <= 0.2
         ]
+
+        for i in range(num_obstacles):
+            # print('ith obstacle:', cbf_h_vals[i])
+            # print('ith velocity:', cbf_t_grads[i])
+            constraints.append(cbf_h_grad[i].T @ u + cbf_t_grad[i] + self.rateh * (cbf_h_val[i] - 0.2) >= 0)
 
         # -------- Solver --------
         # formulate objective function
-        # obj = cp.Minimize(self.p1 * cp.norm(self.prev_u - u) ** 2 + self.p2 * cp.square(delta))
+        obj = cp.Minimize(self.p1 * cp.norm(self.prev_u - u) ** 2 + self.p2 * cp.square(delta))
 
-        obj = cp.Minimize(self.p1 * cp.norm(u) ** 2)
+        # this is pure CBF-QP
+        # obj = cp.Minimize(self.p1 * cp.norm(u) ** 2)
 
         prob = cp.Problem(obj, constraints)
 
         # solving problem
-        prob.solve(solver='SCS', verbose=False)
+        prob.solve(solver='ECOS', verbose=False)
 
         # Check if the problem was solved successfully
         if prob.status == "infeasible":

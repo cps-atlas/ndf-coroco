@@ -11,7 +11,7 @@ class ClfQpController:
         # -------- previous control ----------
         self.prev_u = None
 
-    def generate_controller(self, rbt_config, goal_point, sdf_val, sdf_grad):
+    def generate_controller(self, rbt_config, sdf_val, sdf_grad):
         num_links = len(rbt_config)
         if self.prev_u is None:
             self.prev_u = np.zeros(num_links)
