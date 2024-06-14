@@ -13,7 +13,7 @@ def calculate_link(left_base, right_base, nominal_length, left_length):
     # Calculate the slope and angle of the line connecting the left and right bases
     base_angle = np.arctan2(right_base[1] - left_base[1], right_base[0] - left_base[0])
 
-    num_of_edge_pts = 50
+    num_of_edge_pts = 80
 
 
     # Check if the link is deformed
@@ -100,8 +100,8 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
         left_base = left_end
         right_base = right_end
 
-    ax.set_xlim(-2.5, 4)
-    ax.set_ylim(0.0, len(link_lengths) * nominal_length + 0.5)
+    ax.set_xlim(-4, 4)
+    ax.set_ylim(-len(link_lengths) * nominal_length + 0.5, len(link_lengths) * nominal_length + 0.5)
     # Increase font size for axis labels
     ax.set_xlabel('X', fontsize=20)
     ax.set_ylabel('Y', fontsize=20)

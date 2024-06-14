@@ -20,10 +20,38 @@ def is_point_inside_link(point, boundary_points):
     point_to_check = Point(point)
     return polygon.contains(point_to_check)
 
+def generate_grid_points(x_range, y_range, resolution):
+    x = np.linspace(x_range[0], x_range[1], resolution)
+    y = np.linspace(y_range[0], y_range[1], resolution)
+    xx, yy = np.meshgrid(x, y)
+    points = np.stack((xx.ravel(), yy.ravel()), axis=1)
+    return points
+
+def compute_normals(boundary_points, epsilon=1e-2):
+    # Compute the tangent vectors
+    tangents = np.zeros_like(boundary_points)
+    tangents[:-1] = boundary_points[1:] - boundary_points[:-1]
+    tangents[-1] = boundary_points[0] - boundary_points[-1]
+    
+    # Normalize the tangent vectors
+    tangents /= np.linalg.norm(tangents, axis=1, keepdims=True)
+    
+    # Compute the normal vectors by rotating the tangent vectors by 90 degrees counterclockwise
+    normals = np.zeros_like(tangents)
+    normals[:, 0] = -tangents[:, 1]
+    normals[:, 1] = tangents[:, 0]
+    
+    # Ensure the normals point outward
+    for i in range(len(boundary_points)):
+        point_on_normal = boundary_points[i] + epsilon * normals[i]
+        if is_point_inside_link(point_on_normal, boundary_points):
+            normals[i] *= -1
+    
+    return normals
 
 
 
-def prepare_training_data(num_configs, length_limit, num_points, num_links, nominal_length, left_base, right_base, x_range, y_range):
+def prepare_training_data(num_configs, length_limit, workspace_pt_resol, num_links, nominal_length, left_base, right_base, x_range, y_range, sampling_method='random'):
     dataset = []
 
     for _ in range(num_configs):
@@ -35,7 +63,7 @@ def prepare_training_data(num_configs, length_limit, num_points, num_links, nomi
         current_left_base = left_base
         current_right_base = right_base
 
-        top_bot_edge_pt_num = 25
+        top_bot_edge_pt_num = 27
 
         # Append bottom edge points
         bottom_edge_points = np.linspace(current_left_base, current_right_base, top_bot_edge_pt_num)
@@ -46,8 +74,8 @@ def prepare_training_data(num_configs, length_limit, num_points, num_links, nomi
         # Append right edge points (from link 1 to link N)
         for i in range(num_links):
             left_end, right_end, left_coords, right_coords = calculate_link(current_left_base, current_right_base, nominal_length, left_lengths[i])
-            boundary_points.extend(right_coords.tolist())
-            left_edge_points.append(left_coords.tolist())
+            boundary_points.extend(right_coords[1:-1].tolist())
+            left_edge_points.append(left_coords[1:-1].tolist())
             current_left_base = left_end
             current_right_base = right_end
 
@@ -59,19 +87,42 @@ def prepare_training_data(num_configs, length_limit, num_points, num_links, nomi
         for left_coords in reversed(left_edge_points):
             boundary_points.extend(left_coords)
 
+        boundary_points = np.array(boundary_points)
+        normals = compute_normals(boundary_points)
+
+        # Calculate the indices for removing the corner points
+        bottom_left_index = 0
+        bottom_right_index = top_bot_edge_pt_num - 1
+        top_left_index = len(boundary_points) - sum(len(coords) for coords in left_edge_points) - top_bot_edge_pt_num
+        top_right_index = top_left_index + top_bot_edge_pt_num - 1
+
+        # Remove the 4 corner points and their normals
+        indices_to_remove = [bottom_left_index, bottom_right_index, top_left_index, top_right_index]
+        boundary_points = np.delete(boundary_points, indices_to_remove, axis=0)
+        normals = np.delete(normals, indices_to_remove, axis=0)
 
         # Add boundary points to the dataset with distance 0
-        for point in boundary_points:
+        for point, normal in zip(boundary_points, normals):
             entry = {
                 'configurations': left_lengths,
                 'point': np.array(point),
+                'normal': normal,
                 'distances': [0] * num_links
             }
             dataset.append(entry)
 
-        for _ in range(num_points):
-            # Sample a random workspace point
-            point = np.array([random.uniform(x_range[0], x_range[1]), random.uniform(y_range[0], y_range[1])])
+
+        if sampling_method == 'random':
+            num_points = workspace_pt_resol ** 2
+            workspace_points = [np.array([random.uniform(x_range[0], x_range[1]), random.uniform(y_range[0], y_range[1])]) for _ in range(num_points)]
+        elif sampling_method == 'grid':
+            workspace_points = generate_grid_points(x_range, y_range, workspace_pt_resol)
+        elif sampling_method == 'boundary':
+            print('only sampling boundary points and normals')
+            return dataset
+            
+
+        for point in workspace_points:
 
             distances = []
             current_left_base = left_base
@@ -82,6 +133,19 @@ def prepare_training_data(num_configs, length_limit, num_points, num_links, nomi
 
                 # Find the closest point on the link to the workspace point
                 link_points = np.vstack((left_coords, right_coords))
+
+
+                # Add bottom edge points for the first link
+                if i == 0:
+                    bottom_edge_points = np.linspace(current_left_base, current_right_base, top_bot_edge_pt_num)
+                    link_points = np.vstack((link_points, bottom_edge_points))
+                
+                # Add top edge points for the last link
+                if i == num_links - 1:
+                    top_edge_points = np.linspace(left_end, right_end, top_bot_edge_pt_num)
+                    link_points = np.vstack((link_points, top_edge_points))
+
+
                 distances_to_link = np.linalg.norm(link_points - point, axis=1)
                 min_distance = np.min(distances_to_link)
 
@@ -107,12 +171,11 @@ def prepare_training_data(num_configs, length_limit, num_points, num_links, nomi
     return dataset
 
 
-def visualize_dataset(dataset, num_links, nominal_length, left_base, right_base):
+def visualize_dataset(dataset, nominal_length, left_base, right_base):
     # Select a random entry from the dataset
     entry = random.choice(dataset)
     left_lengths = entry['configurations']
     point = entry['point']
-    distances = entry['distances']
 
     # Plot the soft robot configuration
     fig, ax = plt.subplots(figsize=(8, 8))
@@ -121,6 +184,8 @@ def visualize_dataset(dataset, num_links, nominal_length, left_base, right_base)
     # Plot the boundary points for the selected configuration
     boundary_points = [entry['point'] for entry in dataset if np.all(np.array(entry['distances']) == 0) and np.array_equal(entry['configurations'], left_lengths)]
     boundary_points = np.array(boundary_points)
+    normals = np.array([entry['normal'] for entry in dataset if np.array_equal(entry['configurations'], left_lengths)])
+
     ax.scatter(boundary_points[:, 0], boundary_points[:, 1], color='purple', label='Boundary Points', s=5)
 
     # Plot the sampled points with different colors based on the distance
@@ -130,11 +195,13 @@ def visualize_dataset(dataset, num_links, nominal_length, left_base, right_base)
     inside_points = np.array(inside_points)
     outside_points = np.array(outside_points)
 
-    ax.scatter(inside_points[:, 0], inside_points[:, 1], color='red', label='Inside Points')
-    ax.scatter(outside_points[:, 0], outside_points[:, 1], color='blue', label='Outside Points')
+    # ax.scatter(inside_points[:, 0], inside_points[:, 1], color='red', label='Inside Points')
+    # ax.scatter(outside_points[:, 0], outside_points[:, 1], color='blue', label='Outside Points')
 
-    # Plot the selected point
-    ax.scatter(point[0], point[1], color='green', marker='x', s=100, label='Selected Point')
+    # Plot the normals as arrows
+    for point, normal in zip(boundary_points, normals):
+        ax.arrow(point[0], point[1], normal[0]*0.2, normal[1]*0.2, head_width=0.05, head_length=0.1, fc='k', ec='k')
+
 
     ax.set_xlim(x_range[0], x_range[1])
     ax.set_ylim(y_range[0], y_range[1])
@@ -160,15 +227,15 @@ if __name__ == '__main__':
     right_base = np.array([0.15, 0.0])
 
     # Prepare the training data
-    num_configs = 200
+    num_configs = 400
     length_limit = 0.2
 
-    num_points = 3000
-    dataset = prepare_training_data(num_configs, length_limit, num_points, num_links, nominal_length, left_base, right_base, x_range, y_range)
+    workspace_pt_resolution = 60
+    dataset = prepare_training_data(num_configs, length_limit, workspace_pt_resolution, num_links, nominal_length, left_base, right_base, x_range, y_range, sampling_method='boundary')
 
     # Save the dataset to a file
-    with open('dataset.pickle', 'wb') as f:
-        pickle.dump(dataset, f)
+    # with open('dataset_normal.pickle', 'wb') as f:
+    #     pickle.dump(dataset, f)
 
     # Visualize the prepared dataset
-    visualize_dataset(dataset, num_links, nominal_length, left_base, right_base)
+    visualize_dataset(dataset, nominal_length, left_base, right_base)
