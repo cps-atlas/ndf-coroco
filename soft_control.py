@@ -34,7 +34,7 @@ def integrate_link_lengths(link_lengths, control_signals, dt):
 def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, control_mode = 'clf_cbf'):
     # Define the number of links and time steps
     num_links = 4
-    num_steps = 100 #20
+    num_steps = 300 #20
     
     nominal_length = 1.0
 
@@ -101,7 +101,7 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
             control_signals = clf_qp_controller.generate_controller(link_lengths, sdf_val[-1][-1], sdf_grad[-1][-1])
 
         elif mode == 'mppi':   # mode = MPPI
-            num_samples = 2000 #20000
+            num_samples = 1000 #20000
             costs_lambda = 0.03
             cost_goal_coeff = 15.0
             cost_safety_coeff = 1.0
