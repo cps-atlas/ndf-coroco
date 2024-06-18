@@ -38,14 +38,14 @@ class ClfCbfController:
         V = 0.5 * sdf_val ** 2
         dV_dtheta = sdf_val * sdf_grad
 
-        print('lyapunov value:', V)
+        # print('lyapunov value:', V)
 
         # -------- control input ---------
         u = cp.Variable(num_links)
         delta = cp.Variable()
 
-        # assume obstacle radiance of 0.2
-        print('barrier value:', cbf_h_val - 0.2)
+        # assume osafety margin of 0.1
+        # print('barrier value:', cbf_h_val - 0.1)
 
 
         # print('barrier grad:', cbf_h_grad)
@@ -62,7 +62,7 @@ class ClfCbfController:
         for i in range(num_obstacles):
             # print('ith obstacle:', cbf_h_vals[i])
             # print('ith velocity:', cbf_t_grads[i])
-            constraints.append(cbf_h_grad[i].T @ u + cbf_t_grad[i] + self.rateh * (cbf_h_val[i] - 0.2) >= 0)
+            constraints.append(cbf_h_grad[i].T @ u + cbf_t_grad[i] + self.rateh * (cbf_h_val[i] - 0.1) >= 0)
 
         # -------- Solver --------
         # formulate objective function

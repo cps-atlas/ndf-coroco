@@ -9,7 +9,8 @@ from obstacles import circle
 
 from main_csdf import evaluate_model, compute_cbf_value_and_grad
 
-jax.config.update('jax_platform_name', 'cpu')
+# if no gpu available
+# jax.config.update('jax_platform_name', 'cpu')
 
 def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples = 10, input_size = 4, control_bound = 0.2, dt=0.05, u_guess=None, use_GPU=True, costs_lambda = 0.03,  cost_goal_coeff = 0.2, cost_safety_coeff = 10.0, cost_perturbation_coeff=0.1, cost_goal_coeff_final = 0.2, cost_safety_coeff_final = 10.0, cost_state_coeff = 10.0):
 
@@ -151,6 +152,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
                 cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, obstaclesX, perturbation_sample.T )
                 return cost_sample, robot_states_sample
             batched_body_sample = jax.vmap( body_sample, in_axes=0 )
+            # print('gpu used')
             cost_total, robot_states, = batched_body_sample( robot_states[:,:,0], perturbed_control, perturbation)
         else:
             @jit

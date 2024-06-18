@@ -1,6 +1,7 @@
 import torch
 
 import jax
+from jax import jit
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,9 +15,9 @@ from flax.core import freeze
 '''
 if no GPU
 '''
-jax.config.update('jax_platform_name', 'cpu')
+# jax.config.update('jax_platform_name', 'cpu')
 
-
+@jit
 def evaluate_csdf(net, configuration, x_range, y_range, resolution=100, model_type='torch'):
     # Generate a grid of points in the workspace
     x = np.linspace(x_range[0], x_range[1], resolution)
@@ -46,6 +47,7 @@ def evaluate_csdf(net, configuration, x_range, y_range, resolution=100, model_ty
     distances = min_sdf_distance.reshape(resolution, resolution)
     return distances
 
+@jit
 def plot_csdf_heatmap(configuration, distances, x_range, y_range, nominal_length, left_base, right_base, save_path=None):
     # Plot the soft robot configuration
     fig, ax = plt.subplots(figsize=(8, 8))
