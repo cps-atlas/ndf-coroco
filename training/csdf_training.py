@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from torch.nn.utils import clip_grad_norm_
 
-import numpy as np
+
 import jax
 import jax.numpy as jnp
 from flax import linen as jnn
@@ -18,9 +18,7 @@ from training.config import *
 '''
 if no GPU
 '''
-jax.config.update('jax_platform_name', 'cpu')
-
-
+# jax.config.update('jax_platform_name', 'cpu')
 
 '''
 JAX training without eikonal constraint

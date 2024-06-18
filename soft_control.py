@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 # import flax.traverse_util as traverse_util
 
-from visualize_soft_link import plot_links
+from visualize_soft_link import plot_links, get_last_link_middle_points
 import imageio
 
 from utils.csdf_net import CSDFNet, CSDFNet_JAX
@@ -90,14 +90,16 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
     obst_radius = 0.3
 
     # Define the initial base points for the first link
-    left_base = [-0.15, 0.0]
-    right_base = [0.15, 0.0]
+    left_base = jnp.array([-0.15, 0.0])
+    right_base = jnp.array([0.15, 0.0])
 
     # Initialize link lengths
     link_lengths = np.ones(num_links) * nominal_length
 
     # different initial states
     # link_lengths = np.array([1.05, 0.95, 0.85, 0.95])
+
+
 
 
     # Create controllers for each control mode
@@ -122,7 +124,7 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
 
     # Initial control input guess for MPPI
 
-    prediction_horizon = 15 #20
+    prediction_horizon = 10 #20
 
     U = 0.01 * jnp.ones((prediction_horizon, 4))
 
@@ -172,21 +174,17 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
                 image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))
                 writer.append_data(image[:, :, :3])
 
+        # compute the last link's middle points 
+        grab_left_point, grab_right_point  = get_last_link_middle_points(left_base, right_base, link_lengths, nominal_length)
 
+        grab_point = grab_left_point if np.linalg.norm(grab_left_point - goal_point) < np.linalg.norm(grab_right_point - goal_point) else grab_right_point
+
+        grab_distance = np.linalg.norm(grab_point - goal_point)
+        print('grab_distance:', grab_distance)
         # Compute the signed distance and gradient to the goal point
         sdf_val, sdf_grad, _ = evaluate_model(jax_params, link_lengths, goal_point)
 
 
-        if sdf_val[-1][-1] < 0.2:
-            print("Goal Reached!")
-            # Freeze the video for an additional 0.5 second
-            success_count = 1
-            for _ in range(int(0.5 / dt)):
-                fig.canvas.draw()
-                image = np.frombuffer(fig.canvas.buffer_rgba(), dtype='uint8')
-                image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))
-                writer.append_data(image[:, :, :3])
-            break
 
         # Check for collision
         if mode == 'clf_cbf' or mode == 'mppi':
@@ -210,6 +208,17 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
             
             obstacle_position += obstacle_velocity * dt
 
+            if sdf_val[-1][-1] < 0.2:
+                print("Goal Reached!")
+                # Freeze the video for an additional 0.5 second
+                success_count = 1
+                for _ in range(int(0.5 / dt)):
+                    fig.canvas.draw()
+                    image = np.frombuffer(fig.canvas.buffer_rgba(), dtype='uint8')
+                    image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+                    writer.append_data(image[:, :, :3])
+                break
+
         elif mode == 'clf_qp':  # mode == 'clf_qp'
 
 
@@ -217,17 +226,19 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
             control_signals = clf_qp_controller.generate_controller(link_lengths, sdf_val[-1][-1], sdf_grad[-1][-1])
 
         elif mode == 'mppi':   # mode = MPPI
-            num_samples = 4000      #20000
+            num_samples = 5000      #20000
             costs_lambda = 0.03
-            cost_goal_coeff = 10.0
-            cost_safety_coeff = 1.5
-            cost_goal_coeff_final = 10.0
-            cost_safety_coeff_final = 1.5
+            cost_goal_coeff = 15.0
+            cost_safety_coeff = 0.8
+            cost_goal_coeff_final = 15.0
+            cost_safety_coeff_final = 1.0
             cost_state_coeff = 10.0
 
 
+    
 
-            mppi = setup_mppi_controller(learned_CSDF = jax_params, horizon=prediction_horizon, samples=num_samples, input_size=4, control_bound=0.2, dt=dt, u_guess=None, use_GPU=True, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+            mppi = setup_mppi_controller(learned_CSDF=jax_params, horizon=prediction_horizon, samples=num_samples, input_size=4, control_bound=0.2, dt=dt, u_guess=None, use_GPU=True, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+
             key = jax.random.PRNGKey(111)
 
 
@@ -238,8 +249,20 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
             control_signals = control_signals.reshape(4)
             # print('controls:', control_signals)
 
+
             # Update obstacle position
             obstacle_position += obstacle_velocity * dt
+
+            if grab_distance < 0.1:
+                print("Grab Position Reached!")
+                # Freeze the video for an additional 0.5 second
+                success_count = 1
+                for _ in range(int(0.5 / dt)):
+                    fig.canvas.draw()
+                    image = np.frombuffer(fig.canvas.buffer_rgba(), dtype='uint8')
+                    image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+                    writer.append_data(image[:, :, :3])
+                break
 
         # Update link lengths using Euler integration
 
@@ -301,16 +324,17 @@ if __name__ == '__main__':
 
 
     # create env for quantative statistics
-    num_environments = 3
+    num_environments = 5
     num_trials = 1
 
-    xlim_left = [-4, -1]
-    xlim_right = [1, 4]
-    ylim = [0, 4]
-    goal_xlim_left = [-3.1, -2.5]
-    goal_xlim_right = [2.5, 3.1]
+    xlim_left = [-3.5, -1.2]
+    xlim_right = [1.2, 3.5]
+    ylim = [0.5, 3.8]
+    goal_xlim_left = [-2.7, -2.]
+    goal_xlim_right = [2., 2.7]
     goal_ylim = [1.4, 2.2]
-    min_distance_obs = 0.5
+
+    min_distance_obs = 0.8
     min_distance_goal = 1.0
 
     dt = 0.05

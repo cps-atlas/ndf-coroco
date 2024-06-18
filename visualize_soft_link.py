@@ -1,77 +1,102 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from jax import jit, lax
+import jax.numpy as jnp
+
+@jit
 def calculate_link(left_base, right_base, nominal_length, left_length):
     # Calculate link parameters
-    link_width = np.sqrt((right_base[0] - left_base[0])**2 + (right_base[1] - left_base[1])**2)
-    base_center = [(left_base[0] + right_base[0]) / 2, (left_base[1] + right_base[1]) / 2]
+    link_width = jnp.sqrt((right_base[0] - left_base[0])**2 + (right_base[1] - left_base[1])**2)
+    base_center = (left_base + right_base) / 2
 
     # Calculate the right edge length and curvature
     right_length = 2 * nominal_length - left_length
-    
 
     # Calculate the slope and angle of the line connecting the left and right bases
-    base_angle = np.arctan2(right_base[1] - left_base[1], right_base[0] - left_base[0])
+    base_angle = jnp.arctan2(right_base[1] - left_base[1], right_base[0] - left_base[0])
 
     num_of_edge_pts = 80
 
-
     # Check if the link is deformed
-    if np.abs(right_length - left_length) < 1e-6:
-        # Link is not deformed
-        # Generate points for the original link
-        theta_range = np.linspace(0, nominal_length, num_of_edge_pts)
-        x_left = left_base[0] + theta_range * np.cos(base_angle+np.pi/2)
-        y_left = left_base[1] + theta_range * np.sin(base_angle+np.pi/2)
-        x_right = right_base[0] + theta_range * np.cos(base_angle+np.pi/2)
-        y_right = right_base[1] + theta_range * np.sin(base_angle+np.pi/2)
+    is_deformed = jnp.abs(right_length - left_length) >= 1e-6
+
+    # Generate points for the original link
+    theta_range = jnp.linspace(0, nominal_length, num_of_edge_pts)
+    x_left_original = left_base[0] + theta_range * jnp.cos(base_angle + jnp.pi/2)
+    y_left_original = left_base[1] + theta_range * jnp.sin(base_angle + jnp.pi/2)
+    x_right_original = right_base[0] + theta_range * jnp.cos(base_angle + jnp.pi/2)
+    y_right_original = right_base[1] + theta_range * jnp.sin(base_angle + jnp.pi/2)
+
+    left_end_original = jnp.array([x_left_original[-1], y_left_original[-1]])
+    right_end_original = jnp.array([x_right_original[-1], y_right_original[-1]])
+
+    # Calculate the radius and center of the deformed link
+    radius = (link_width / 2) * jnp.abs((left_length + right_length) / (right_length - left_length))
+
+    center_x = base_center[0] - jnp.sign(right_length - left_length) * radius * jnp.cos(base_angle)
+    center_y = base_center[1] - jnp.sign(right_length - left_length) * radius * jnp.sin(base_angle)
+
+    # Calculate the central angle (theta) based on the arc length and radius
+    theta = nominal_length / radius
+
+    # Calculate the starting angle of the arc
+    start_angle = jnp.arctan2(base_center[1] - center_y, base_center[0] - center_x)
+
+    # Generate points for the deformed link
+    theta_range_deformed = jnp.where(left_length < right_length,
+                                     jnp.linspace(start_angle, start_angle + theta, num_of_edge_pts),
+                                     jnp.linspace(start_angle, start_angle - theta, num_of_edge_pts))
+
+    x_left_deformed = jnp.where(left_length < right_length,
+                                center_x + (radius - link_width / 2) * jnp.cos(theta_range_deformed),
+                                center_x + (radius + link_width / 2) * jnp.cos(theta_range_deformed))
+    y_left_deformed = jnp.where(left_length < right_length,
+                                center_y + (radius - link_width / 2) * jnp.sin(theta_range_deformed),
+                                center_y + (radius + link_width / 2) * jnp.sin(theta_range_deformed))
+    x_right_deformed = jnp.where(left_length < right_length,
+                                 center_x + (radius + link_width / 2) * jnp.cos(theta_range_deformed),
+                                 center_x + (radius - link_width / 2) * jnp.cos(theta_range_deformed))
+    y_right_deformed = jnp.where(left_length < right_length,
+                                 center_y + (radius + link_width / 2) * jnp.sin(theta_range_deformed),
+                                 center_y + (radius - link_width / 2) * jnp.sin(theta_range_deformed))
+
+    left_end_deformed = jnp.array([x_left_deformed[-1], y_left_deformed[-1]])
+    right_end_deformed = jnp.array([x_right_deformed[-1], y_right_deformed[-1]])
+
+    # Select the appropriate points based on the deformation condition
+    left_end = jnp.where(is_deformed, left_end_deformed, left_end_original)
+    right_end = jnp.where(is_deformed, right_end_deformed, right_end_original)
+    x_left = jnp.where(is_deformed, x_left_deformed, x_left_original)
+    y_left = jnp.where(is_deformed, y_left_deformed, y_left_original)
+    x_right = jnp.where(is_deformed, x_right_deformed, x_right_original)
+    y_right = jnp.where(is_deformed, y_right_deformed, y_right_original)
+
+    # Return the left edge points from top to bottom, right edge points from bottom to top
+    return left_end, right_end, jnp.vstack((x_left[::-1], y_left[::-1])).T, jnp.vstack((x_right, y_right)).T
+    
 
 
-        left_end = [x_left[-1], y_left[-1]]
-        right_end = [x_right[-1], y_right[-1]]
+@jit
+def get_last_link_middle_points(left_base, right_base, link_lengths, nominal_length):
+    link_lengths_jax = jnp.array(link_lengths)
 
-        # Return the left edge points from top to bottom, right edge points from bottom to top
-        return left_end, right_end, np.vstack((x_left[::-1], y_left[::-1])).T, np.vstack((x_right, y_right)).T
-    else:
-        # Calculate the radius and center of the deformed link
-        radius = (link_width / 2) * np.abs((left_length + right_length) / (right_length - left_length))
+    def body_fun(i, inputs):
+        left_base, right_base = inputs
+        left_length = lax.dynamic_slice(link_lengths_jax, (i,), (1,))[0]
+        left_end, right_end, _, _ = calculate_link(left_base, right_base, nominal_length, left_length)
+        return left_end, right_end
 
-        center_x = base_center[0] - np.sign(right_length - left_length) * radius * np.cos(base_angle)
-        center_y = base_center[1] - np.sign(right_length - left_length) * radius * np.sin(base_angle)
+    left_base, right_base = lax.fori_loop(0, len(link_lengths) - 1, body_fun, (left_base, right_base))
 
+    left_length = link_lengths[-1]
+    left_end, right_end, left_coords, right_coords = calculate_link(left_base, right_base, nominal_length, left_length)
 
-        # Calculate the central angle (theta) based on the arc length and radius
-        theta = nominal_length / radius
+    mid_index = len(left_coords) // 2
+    left_middle = left_coords[mid_index]
+    right_middle = right_coords[mid_index]
 
-        # Calculate the starting angle of the arc
-        start_angle = np.arctan2(base_center[1] - center_y, base_center[0] - center_x)
-
-
-        # Generate points for the deformed link
-        if left_length < right_length:
-            theta_range = np.linspace(start_angle, start_angle + theta, num_of_edge_pts)
-
-            x_left = center_x + (radius - link_width / 2) * np.cos(theta_range)
-            y_left = center_y + (radius - link_width / 2) * np.sin(theta_range)
-            x_right = center_x + (radius + link_width / 2) * np.cos(theta_range)
-            y_right = center_y + (radius + link_width / 2) * np.sin(theta_range)
-        else:
-            theta_range = np.linspace(start_angle, start_angle - theta, num_of_edge_pts)
-
-            x_left = center_x + (radius + link_width / 2) * np.cos(theta_range)
-            y_left = center_y + (radius + link_width / 2) * np.sin(theta_range)
-            x_right = center_x + (radius - link_width / 2) * np.cos(theta_range)
-            y_right = center_y + (radius - link_width / 2) * np.sin(theta_range)
-
-
-
-        left_end = [x_left[-1], y_left[-1]]
-        right_end = [x_right[-1], y_right[-1]]
-
-
-        # return the left edge points from top to bottom, right edge points from bottom to top;
-        # this is important when checking if point is inside a polygon (require an ordered boundary points of a polygon)
-        return left_end, right_end, np.vstack((x_left[::-1], y_left[::-1])).T, np.vstack((x_right, y_right)).T
+    return left_middle, right_middle
 
 
 def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
@@ -80,11 +105,13 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
 
     legend_elements = []
 
+    robot_left_base = left_base
+    robot_right_base = right_base
+
     # Iterate over the link lengths and plot each link
     for i, left_length in enumerate(link_lengths):
         # Calculate the current link
         left_end, right_end, left_coords, right_coords = calculate_link(left_base, right_base, nominal_length, left_length)
-
 
         # Concatenate the left and right edge coordinates
         x_coords = np.concatenate((left_coords[:, 0], right_coords[:, 0]))
@@ -99,6 +126,17 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
         # Update the base points for the next link
         left_base = left_end
         right_base = right_end
+
+    # Get the left and right middle points of the last link
+    left_middle, right_middle = get_last_link_middle_points(robot_left_base, robot_right_base, link_lengths, nominal_length)
+
+
+
+    # Plot the left middle point
+    ax.plot(left_middle[0], left_middle[1], 'ko', markersize=8, label='Left Middle')
+
+    # Plot the right middle point
+    ax.plot(right_middle[0], right_middle[1], 'ko', markersize=8, label='Right Middle')
 
     ax.set_xlim(-4, 4)
     ax.set_ylim(-len(link_lengths) * nominal_length + 0.5, len(link_lengths) * nominal_length + 0.5)
@@ -128,6 +166,9 @@ def main():
     # Define the initial base points for the first link
     left_base = [-0.15, 0.0]
     right_base = [0.15, 0.0]
+
+    left_base = jnp.array(left_base)
+    right_base = jnp.array(right_base)
 
     fig, ax = plt.subplots(figsize=(8, 8))
 

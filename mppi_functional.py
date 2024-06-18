@@ -9,6 +9,8 @@ from obstacles import circle
 
 from main_csdf import evaluate_model, compute_cbf_value_and_grad
 
+from visualize_soft_link import get_last_link_middle_points
+
 # if no gpu available
 # jax.config.update('jax_platform_name', 'cpu')
 
@@ -85,6 +87,15 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
         min_length = 0.8
         max_length = 1.2
 
+        # Compute the current position of the last link's middle points
+        nominal_length = 1.0
+
+        # Define the initial base points for the first link
+        left_base = jnp.array([-0.15, 0.0])
+        right_base = jnp.array([0.15, 0.0])
+
+        obst_radius = 0.3
+
         # loop over horizon
         cost_sample = 0
         def body(i, inputs):
@@ -101,7 +112,17 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
             # print('sdf:', sdf_val[-1][-1])
             # print('cost_sample:',  cost_sample)
             # print('cost_goal_coeff:', cost_goal_coeff)
-            cost_sample = cost_sample + cost_goal_coeff * sdf_val[-1][-1]
+
+
+            left_middle, right_middle = get_last_link_middle_points(left_base, right_base, robot_state.squeeze(), nominal_length)
+
+            # Determine which point to use for the distance calculation
+            grab_point = jnp.where(jnp.linalg.norm(left_middle - goal) < jnp.linalg.norm(right_middle - goal), left_middle, right_middle)
+
+            # Compute the distance between the grab point and the goal
+            grab_point_distance = jnp.linalg.norm(goal - grab_point)
+
+            cost_sample = cost_sample + cost_goal_coeff * grab_point_distance
             
             
             cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [i]]-perturbation[:,[i]]).T @ control_cov_inv @ perturbation[:,[i]])[0,0]
@@ -112,7 +133,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
 
             # print('safety_value:', cbf_h_val)
 
-            cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(cbf_h_val)-0.3, 0.01]))
+            cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(cbf_h_val)- obst_radius, 0.01]))
 
             # Compute the state constraint violation cost
             state_constraint_violation = jnp.sum(jnp.maximum(min_length - robot_state.squeeze(), 0) + jnp.maximum(robot_state.squeeze() - max_length, 0))
@@ -126,7 +147,20 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
 
         robot_state = robot_states[:,[horizon-1]]
         sdf_val, _, _ = evaluate_model(jax_params, robot_state.squeeze(), goal)
-        cost_sample = cost_sample + cost_goal_coeff_final * sdf_val[-1][-1]
+        
+
+        left_middle, right_middle = get_last_link_middle_points(left_base, right_base, robot_state.squeeze(), nominal_length)
+
+        # Determine which point to use for the distance calculation
+        grab_point = jnp.where(jnp.linalg.norm(left_middle - goal) < jnp.linalg.norm(right_middle - goal), left_middle, right_middle)
+
+        # Compute the distance between the grab point and the goal
+        grab_point_distance = jnp.linalg.norm(goal - grab_point)
+
+        cost_sample = cost_sample + cost_goal_coeff_final * grab_point_distance        
+        #cost_sample = cost_sample + cost_goal_coeff_final * sdf_val[-1][-1]
+
+        cost_sample = cost_sample + cost_goal_coeff_final * grab_point_distance
         cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
         cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
         cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-0.3, 0.01]))
@@ -149,7 +183,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
         if use_gpu:
             @jit
             def body_sample(robot_states_init, perturbed_control_sample, perturbation_sample):
-                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, obstaclesX, perturbation_sample.T )
+                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, obstaclesX, perturbation_sample.T)
                 return cost_sample, robot_states_sample
             batched_body_sample = jax.vmap( body_sample, in_axes=0 )
             # print('gpu used')
@@ -160,7 +194,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
                 robot_states, cost_total, obstaclesX = inputs     
 
                 # Get cost
-                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states[i,:,0], perturbed_control[i,:,:].T, obstaclesX, perturbation[i,:,:].T )
+                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states[i,:,0], perturbed_control[i,:,:].T, obstaclesX, perturbation[i,:,:].T)
                 cost_total = cost_total.at[i].set( cost_sample )
                 robot_states = robot_states.at[i,:,:].set( robot_states_sample )
                 return robot_states, cost_total, obstaclesX  
@@ -195,7 +229,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
         return states
     
     @jit
-    def compute_rollout_costs( key, U, init_state, goal, obstaclesX ):
+    def compute_rollout_costs( key, U, init_state, goal, obstaclesX):
 
         perturbation, perturbed_control = compute_perturbed_control(key, control_mu, control_cov, control_bound, U)
 
