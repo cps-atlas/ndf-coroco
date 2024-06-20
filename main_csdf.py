@@ -2,11 +2,11 @@ import pickle
 import numpy as np
 
 import jax
-from jax import jit, lax
+from jax import jit
 import jax.numpy as jnp
 
 import torch
-from utils.csdf_net import CSDFNet, CSDFNet_JAX
+from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.csdf_training import train, train_with_eikonal, train_with_normal_loss, train_jax
 from training.config import *
 

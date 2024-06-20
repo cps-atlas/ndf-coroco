@@ -5,11 +5,9 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax.random import multivariate_normal
 from jax import jit, lax
-from obstacles import circle
 
 from main_csdf import evaluate_model, compute_cbf_value_and_grad
-
-from visualize_soft_link import get_last_link_middle_points
+from utils import get_last_link_middle_points
 
 # if no gpu available
 # jax.config.update('jax_platform_name', 'cpu')
@@ -39,7 +37,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
     jax_params = learned_CSDF
 
     control_mu = jnp.zeros(robot_m) 
-    control_cov = 0.2 * jnp.eye(robot_m) #0.1 * jnp.eye(robot_m)
+    control_cov = 0.1 * jnp.eye(robot_m) #0.1 * jnp.eye(robot_m)
     control_cov_inv = jnp.linalg.inv(control_cov)
     control_bound = control_bound
     control_bound_lb = -jnp.array([1,1]).reshape(-1,1)
@@ -207,7 +205,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
         perturbation = multivariate_normal( subkey, control_mu, control_cov, shape=( samples, horizon ) ) # K x T x nu 
 
         
-        perturbation = jnp.clip( perturbation, -3.0, 3.0 ) #0.3
+        perturbation = jnp.clip( perturbation, -1.0, 1.0 ) #0.3
         perturbed_control = U + perturbation
 
         perturbed_control = jnp.clip( perturbed_control, -control_bound, control_bound )
@@ -248,64 +246,8 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
     return compute_rollout_costs
     
 def main():
-    plt.ion()
-    fig, ax = plt.subplots( )
-    ax.set_xlim([-1,12])
-    ax.set_ylim([-1,12])
-    dt = 0.05
-    tf = 10
-    T = int(tf/dt)
-    prediction_tf = 4
-    prediction_horizon = int(prediction_tf/dt)
-    num_samples = 20000
-    costs_lambda = 0.03 
-    cost_goal_coeff = 0.2
-    cost_safety_coeff = 10.0
-    cost_goal_coeff_final = 1.0
-    cost_safety_coeff_final = 5.0
 
-    # robot
-    X = jnp.array([0,0]).reshape(-1,1)
-    n = 2
-    control_bound = 7
-
-    # obstacle
-    radius = 1.0
-    obs = np.array([3,3]).reshape(-1,1)
-    circ = circle( ax, pos=obs, radius=radius )
-    goal = jnp.array([9,9]).reshape(-1,1)
-    ax.scatter(goal[0], goal[1], s=50, edgecolors='g', facecolors='none')
-
-    # Setup MPPI controller
-    mppi = setup_mppi_controller(horizon=prediction_horizon, samples = num_samples, input_size = 2, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=False, costs_lambda = costs_lambda, cost_goal_coeff = cost_goal_coeff, cost_safety_coeff = cost_safety_coeff, cost_goal_coeff_final = cost_goal_coeff_final, cost_safety_coeff_final = cost_safety_coeff_final, cost_perturbation_coeff=0.1)
-    key = jax.random.PRNGKey(111)
-
-    # Plotting
-    robot_body = ax.scatter(X[0,0],X[1,0],c='g',alpha=1.0,s=70)
-    plot_num_samples = 10
-    sampled_trajectories_plot = []
-    for i in range(plot_num_samples): # sampled trajectories
-        sampled_trajectories_plot.append( ax.plot(jnp.ones(prediction_horizon), 0*jnp.ones(prediction_horizon), 'g', alpha=0.2) )
-    selected_trajectory_plot = ax.plot(jnp.ones(prediction_horizon), 0*jnp.ones(prediction_horizon), 'b')
-
-    # Initial control input guess
-    U = 3 * jnp.ones((prediction_horizon,2))
-
-    for t in range(T):
-        key, subkey = jax.random.split(key)
-        robot_sampled_states, robot_selected_states, robot_action, U = mppi(subkey, U, X, goal, obs)
-
-        X = X + robot_action * dt
-        robot_body.set_offsets([X[0,0], X[1,0]])
-
-        for i in range(plot_num_samples):
-            sampled_trajectories_plot[i][0].set_xdata( robot_sampled_states[n*i,:] )
-            sampled_trajectories_plot[i][0].set_ydata( robot_sampled_states[n*i+1,:] )
-        selected_trajectory_plot[0].set_xdata(robot_selected_states[0,:] )
-        selected_trajectory_plot[0].set_ydata(robot_selected_states[1,:] )
-
-        fig.canvas.draw()
-        fig.canvas.flush_events()
+    return None
 
 
 if __name__=="__main__":

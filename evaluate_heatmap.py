@@ -5,10 +5,10 @@ from jax import jit
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.csdf_net import CSDFNet, CSDFNet_JAX
+from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.config import *
 
-from visualize_soft_link import plot_links
+from utils import plot_links
 
 from flax.core import freeze
 
@@ -17,8 +17,7 @@ if no GPU
 '''
 # jax.config.update('jax_platform_name', 'cpu')
 
-@jit
-def evaluate_csdf(net, configuration, x_range, y_range, resolution=100, model_type='torch'):
+def evaluate_csdf(net, configuration, x_range, y_range, resolution=100, model_type='jax'):
     # Generate a grid of points in the workspace
     x = np.linspace(x_range[0], x_range[1], resolution)
     y = np.linspace(y_range[0], y_range[1], resolution)
@@ -39,7 +38,7 @@ def evaluate_csdf(net, configuration, x_range, y_range, resolution=100, model_ty
     elif model_type == 'jax':
         inputs_tensor = jnp.array(inputs)
         # Evaluate the signed distance values
-        outputs = net.apply(net.params, inputs_tensor)
+        outputs = net.apply(net.params, inputs)
         min_sdf_distance = np.min(np.array(outputs), axis=1)
     else:
         raise ValueError(f"Invalid model type: {model_type}. Supported types are 'torch' and 'jax'.")
@@ -47,7 +46,7 @@ def evaluate_csdf(net, configuration, x_range, y_range, resolution=100, model_ty
     distances = min_sdf_distance.reshape(resolution, resolution)
     return distances
 
-@jit
+
 def plot_csdf_heatmap(configuration, distances, x_range, y_range, nominal_length, left_base, right_base, save_path=None):
     # Plot the soft robot configuration
     fig, ax = plt.subplots(figsize=(8, 8))

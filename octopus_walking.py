@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import imageio
-from visualize_soft_link import plot_links
+from utils import plot_links
+
+import jax.numpy as jnp
 
 
 def generate_gait_pattern(t, num_legs, num_links_per_leg, nominal_length, amplitude, phase_diff):
@@ -28,6 +30,8 @@ def main():
         [[0.85, 0.0], [0.55, 0.0]],
         [[-0.55, 0.0], [-0.85, 0.0]]
     ]
+
+    base_points = jnp.array(base_points)
 
     # Define the number of time steps and the time step size
     num_steps = 100

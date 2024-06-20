@@ -133,13 +133,14 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
 
 
     # Plot the left middle point
-    ax.plot(left_middle[0], left_middle[1], 'ko', markersize=8, label='Left Middle')
+    #ax.plot(left_middle[0], left_middle[1], 'ko', markersize=8, label='Left Middle')
 
     # Plot the right middle point
-    ax.plot(right_middle[0], right_middle[1], 'ko', markersize=8, label='Right Middle')
+    #ax.plot(right_middle[0], right_middle[1], 'ko', markersize=8, label='Right Middle')
 
     ax.set_xlim(-4, 4)
-    ax.set_ylim(-len(link_lengths) * nominal_length + 0.5, len(link_lengths) * nominal_length + 0.5)
+    #ax.set_ylim(-len(link_lengths) * nominal_length + 0.5, len(link_lengths) * nominal_length + 0.5)
+    ax.set_ylim(-2, len(link_lengths) * nominal_length + 0.5)
     # Increase font size for axis labels
     ax.set_xlabel('X', fontsize=20)
     ax.set_ylabel('Y', fontsize=20)
@@ -149,11 +150,56 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
     
     # Increase font size for legend
     ax.legend(fontsize=18)
-    #ax.set_title('Multiple Link Deformation')
 
     ax.set_aspect('equal')
 
     return legend_elements
+
+def integrate_link_lengths(link_lengths, control_signals, dt):
+    # Euler integration to update link lengths
+    link_lengths += control_signals * dt
+    return link_lengths
+
+def generate_random_env(num_obstacles, xlim_left, xlim_right, ylim, goal_xlim_left, goal_xlim_right, goal_ylim, min_distance_obs, min_distance_goal):
+    # Generate random obstacle positions and velocities
+    obstacle_positions = []
+    obstacle_velocities = []
+
+    for _ in range(num_obstacles):
+        while True:
+            # Randomly choose left or right side for obstacle position
+            if np.random.rand() < 0.5:
+                pos = np.random.uniform(low=[xlim_left[0], ylim[0]], high=[xlim_left[1], ylim[1]])
+            else:
+                pos = np.random.uniform(low=[xlim_right[0], ylim[0]], high=[xlim_right[1], ylim[1]])
+
+            if all(np.linalg.norm(pos - np.array(obs_pos)) >= min_distance_obs for obs_pos in obstacle_positions):
+                obstacle_positions.append(pos)
+                break
+
+        vel = np.random.uniform(low=[-0.5, -0.5], high=[0.5, 0.5])
+
+        # static obstacle
+        vel = np.array([0.0, 0.0])
+
+        obstacle_velocities.append(vel)
+
+    obstacle_positions = np.array(obstacle_positions)
+    obstacle_velocities = np.array(obstacle_velocities)
+
+    # Generate random goal point
+    while True:
+        # Randomly choose left or right side for goal position
+        if np.random.rand() < 0.5:
+            goal_point = np.random.uniform(low=[goal_xlim_left[0], goal_ylim[0]], high=[goal_xlim_left[1], goal_ylim[1]])
+        else:
+            goal_point = np.random.uniform(low=[goal_xlim_right[0], goal_ylim[0]], high=[goal_xlim_right[1], goal_ylim[1]])
+
+        if all(np.linalg.norm(goal_point - obs_pos) >= min_distance_goal for obs_pos in obstacle_positions):
+            break
+
+    return obstacle_positions, obstacle_velocities, goal_point
+
 
 
 def main():
