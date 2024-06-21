@@ -161,7 +161,7 @@ following is training with pytorch
 
 '''
 
-def main_torch(train_eikonal=True):
+def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
     with open('training_data/dataset_grid.pickle', 'rb') as f:
         training_data = pickle.load(f)
@@ -195,13 +195,13 @@ def main_torch(train_eikonal=True):
     if train_eikonal:
         net = train_with_eikonal(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal=0.1)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_model_eikonal.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models/new_test.pth")
     else:
         net = train(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001)
         #net = train_with_normal_loss(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal = 0.1)
 
         # Save the trained model with normal loss
-        torch.save(net.state_dict(), "trained_with_normal.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models/new_test.pth")
 
 
 '''
@@ -246,6 +246,6 @@ if __name__ == "__main__":
     # Specify to Train with Eikonal or not 
     train_eikonal = False
 
-    #main_torch(train_eikonal)
+    main_torch(train_eikonal)
 
-    main_jax(train_eikonal)
+    #main_jax(train_eikonal)

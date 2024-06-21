@@ -133,7 +133,7 @@ def main():
     right_base = np.array([0.15, 0.0])
 
     # Define the configuration to evaluate
-    configuration = np.array([0.9, 0.8, 0.9, 0.9])
+    configuration = np.array([1.1, 1.1, 1.1, 1.1])
 
     # Evaluate the signed distance values
     distances = evaluate_csdf(net, configuration, x_range, y_range, resolution=200, model_type=model_type)
