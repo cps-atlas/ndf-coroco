@@ -14,57 +14,32 @@ import imageio
 from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.config import *
 
-from main_csdf import evaluate_model, compute_cbf_value_and_grad
-
-
 from control.clf_qp import ClfQpController
 from control.clf_cbf_qp import ClfCbfController
-
 from control.mppi_functional import setup_mppi_controller
 
 from flax.core import freeze
 
+from robot import Robot
+from operate_env import Environment
 
-def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, control_mode='clf_cbf', env_idx=0, trial_idx=0):
+
+def main(jax_params, env, robot, dt, mode='clf_cbf', env_idx=0, trial_idx=0):
 
     # initialize the paarameters for return
     success_count = 0
     collision_count = 0
     total_time = 0.0
 
-
-    # Define the number of links and time steps
-    num_links = 4
-    num_steps = 200
-    
-    nominal_length = 1.0
-
-    obst_radius = 0.3
-
-    # Define the initial base points for the first link
-    left_base = jnp.array([-0.15, 0.0])
-    right_base = jnp.array([0.15, 0.0])
-
-    # Initialize link lengths
-    link_lengths = np.ones(num_links) * nominal_length
-
-    # different initial states
-    # link_lengths = np.array([1.05, 0.95, 0.85, 0.95])
-
-
-
-
     # Create controllers for each control mode
     clf_cbf_controller = ClfCbfController()
     clf_qp_controller = ClfQpController()
 
-    # Simulate and record videos for each control mode
-    mode = control_mode
 
     # Create directory structure for saving videos
     result_dir = 'result_videos'
     env_dir = f'env{env_idx+1}'
-    mode_dir = control_mode
+    mode_dir = mode
     video_name = f'trial{trial_idx+1}.mp4'
 
     os.makedirs(os.path.join(result_dir, env_dir, mode_dir), exist_ok=True)
@@ -74,29 +49,36 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
     writer = imageio.get_writer(video_path, fps=int(1/dt))
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    # Initial control input guess for MPPI
+    # Set up MPPI controller
 
     prediction_horizon = 30 #20
 
-    U = 0.01 * jnp.ones((prediction_horizon, num_links))
+    U = 0.01 * jnp.ones((prediction_horizon, robot.num_links))
+
+    num_samples = 5000      #20000
+    costs_lambda = 0.03
+    cost_goal_coeff = 18.0
+    cost_safety_coeff = 2.2
+    cost_goal_coeff_final = 15.0
+    cost_safety_coeff_final = 1.8
+    cost_state_coeff = 10.0
+
+
+    mppi = setup_mppi_controller(learned_CSDF=jax_params, horizon=prediction_horizon, samples=num_samples, input_size=4, control_bound=0.2, dt=dt, u_guess=None, use_GPU=True, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+          
 
     grab_mode = False
 
     grab_successful = False
 
-    grab_goal = np.copy(goal_point)
-    grab_goal[1] += 0.01
-
-    if grab_goal[0] < 0:
-        grab_goal[0] -= 0.35
-    else:
-        grab_goal[0] += 0.35
 
     # Determine the grabbing control signal based on the grab point
-    grab_control = -0.15 if grab_goal[0] < 0 else 0.15
+    grab_control = -0.15 if env.goal_point[0] < 0 else 0.15
 
     # Define the initial control signal
-    control_signals = np.random.uniform(-0.12, 0.12, size=num_links)
+    control_signals = np.random.uniform(-0.12, 0.12, size=robot.num_links)
+
+    num_steps = 100
 
     for step in range(num_steps):
 
@@ -105,15 +87,15 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
         ax.clear()
 
         # Plot the links using the plot_links function
-        legend_elements = plot_links(link_lengths, nominal_length, left_base, right_base, ax)
+        legend_elements = plot_links(robot.link_lengths, robot.nominal_length, robot.left_base, robot.right_base, ax)
 
         
         if mode in ['clf_cbf', 'mppi']:    
-            goal_plot, = ax.plot(goal_point[0], goal_point[1], marker='*', markersize=12, color='blue', label = 'Goal')
+            goal_plot, = ax.plot(env.goal_point[0], env.goal_point[1], marker='*', markersize=12, color='blue', label = 'Goal')
             legend_elements.append(goal_plot)
             # Plot the obstacles
             obstacle_plots = []
-            for i, obstacle in enumerate(obstacle_position):
+            for i, obstacle in enumerate(env.obstacle_positions):
                 obstacle_circle = Circle((obstacle[0], obstacle[1]), radius=obst_radius, color='r', fill=True)
                 ax.add_patch(obstacle_circle)
                 if i == 0:
@@ -125,7 +107,7 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
         
         elif mode == 'clf_qp':  # mode == 'clf_qp'
             # Plot the goal point
-            ax.plot(goal_point[0], goal_point[1], marker='*', markersize=12, color='blue', label = 'Goal')
+            ax.plot(env.goal_point[0], env.goal_point[1], marker='*', markersize=12, color='blue', label = 'Goal')
 
         # Convert the plot to an image and append it to the video
         ax.legend(handles=legend_elements, fontsize=16)
@@ -144,11 +126,16 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
                 writer.append_data(image[:, :, :3])
 
         # compute the last link's middle points 
-        grab_left_point, grab_right_point  = get_last_link_middle_points(left_base, right_base, link_lengths, nominal_length)
+        grab_left_point, grab_right_point = robot.get_last_link_grasp_points()
 
-        #grab_point = grab_left_point if np.linalg.norm(grab_left_point - grab_goal) < np.linalg.norm(grab_right_point - grab_goal) else grab_right_point
+        grab_point = grab_left_point if np.linalg.norm(grab_left_point - env.goal_point) < np.linalg.norm(grab_right_point - env.goal_point) else grab_right_point
 
-        grab_point = grab_right_point 
+ 
+         # Calculate the direction vector from the grab point to the object's center
+        grab_direction = (env.goal_point - grab_point) / np.linalg.norm(env.goal_point - grab_point)
+
+        grab_goal = env.goal_point - grab_direction * 0.2
+
 
         grab_distance = np.linalg.norm(grab_point - grab_goal)
         print('grab_distance:', grab_distance)
@@ -157,31 +144,28 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
 
 
         # Compute the signed distance and gradient to the goal point
-        sdf_val, sdf_grad, _ = evaluate_model(jax_params, link_lengths, goal_point)
+        sdf_val, sdf_grad, _ = evaluate_model(jax_params, robot.link_lengths, env.goal_point)
 
-
+        #print('sdf_val:', sdf_val)
 
         # Check for collision
         if mode == 'clf_cbf' or mode == 'mppi':
-            cbf_h_val, cbf_h_grad, cbf_t_grad = compute_cbf_value_and_grad(jax_params, link_lengths, obstacle_position, obstacle_velocity)
+            cbf_h_val, cbf_h_grad, cbf_t_grad = compute_cbf_value_and_grad(jax_params, robot.link_lengths, env.obstacle_positions, env.obstacle_velocities)
 
             # print('cbf_h_val:', cbf_h_val)
             
-            if min(cbf_h_val) - obst_radius < 0:
+            if min(cbf_h_val) - env.obst_radius < 0:
                 collision_count += 1
                 print("Collision detected!")
                 break
 
         if mode == 'clf_cbf':
             # Compute the CBF value and gradients
-            cbf_h_val, cbf_h_grad, cbf_t_grad = compute_cbf_value_and_grad(jax_params, link_lengths, obstacle_position, obstacle_velocity)
+            cbf_h_val, cbf_h_grad, cbf_t_grad = compute_cbf_value_and_grad(jax_params, robot.link_lengths, env.obstacle_positions, env.obstacle_velocities)
 
             # Generate control signals using the CBF-CLF controller
-            control_signals = clf_cbf_controller.generate_controller(link_lengths, cbf_h_val - obst_radius, cbf_h_grad, cbf_t_grad, sdf_val[-1][-1], sdf_grad[-1][-1])
+            control_signals = clf_cbf_controller.generate_controller(robot.link_lengths, cbf_h_val - obst_radius, cbf_h_grad, cbf_t_grad, sdf_val[-1][-1], sdf_grad[-1][-1])
 
-            # Update obstacle position
-            
-            obstacle_position += obstacle_velocity * dt
 
             if sdf_val[-1][-1] < 0.1:
                 print("Goal Reached!")
@@ -198,47 +182,28 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
 
 
             # Generate control signals using the CLF-QP controller
-            control_signals = clf_qp_controller.generate_controller(link_lengths, sdf_val[-1][-1], sdf_grad[-1][-1])
+            control_signals = clf_qp_controller.generate_controller(robot.link_lengths, sdf_val[-1][-1], sdf_grad[-1][-1])
 
 
         elif mode == 'random':  # mode == random
 
             # Generate a random perturbation vector
-            perturbation = np.random.uniform(-0.04, 0.04, size=num_links)
+            perturbation = np.random.uniform(-0.04, 0.04, size=robot.num_links)
     
-            # Update the control signal with the perturbation
-            control_signals = control_signals + perturbation
-    
-            # Clip the control signal to the desired range
-            control_signals = np.clip(control_signals, -0.12, 0.12)
+            # Update the control signal with the perturbation, Clip the control signal to the desired range
+            control_signals = np.clip(control_signals + perturbation, -0.12, 0.12)
 
 
         elif mode == 'mppi':   # mode = MPPI
-            num_samples = 5000      #20000
-            costs_lambda = 0.03
-            cost_goal_coeff = 18.0
-            cost_safety_coeff = 2.2
-            cost_goal_coeff_final = 15.0
-            cost_safety_coeff_final = 1.8
-            cost_state_coeff = 10.0
-
-
-
             
+            if not grab_mode and grab_distance >= 0.02:
 
-            if not grab_mode and grab_distance >= 0.1:
-                mppi = setup_mppi_controller(learned_CSDF=jax_params, horizon=prediction_horizon, samples=num_samples, input_size=4, control_bound=0.2, dt=dt, u_guess=None, use_GPU=True, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
                 key = jax.random.PRNGKey(111)
                 key, subkey = jax.random.split(key)
 
-
-
-                robot_sampled_states, robot_selected_states, control_signals, U = mppi(subkey, U, link_lengths, grab_goal, obstacle_position)
+                robot_sampled_states, robot_selected_states, control_signals, U = mppi(subkey, U, robot.link_lengths, grab_goal, env.obstacle_positions)
                 control_signals = control_signals.reshape(4)
-                # print('controls:', control_signals)
-                
-                # Update obstacle position
-                obstacle_position += obstacle_velocity * dt
+
             else:
                 if not grab_mode:
                     print("Grab Position Reached!")
@@ -247,13 +212,12 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
 
                 control_signals = np.array([0., 0., 0., grab_control])
                 
-                if link_lengths[-1] > 1.34 or link_lengths[-1] < 0.66:
+                if robot.link_lengths[-1] > 1.32 or robot.link_lengths[-1] < 0.68:
                     if not grab_successful:
                         print("Grab Successful!")
                         grab_successful = True
                         # Store the relative position of the goal point to the grab point
-                        relative_goal_position = grab_point - goal_point
-                        print('relative_pos:', relative_goal_position)
+                        relative_goal_dis = np.linalg.norm(env.goal_point - grab_point)
 
 
                     # Apply control to bring the first three links to the desired range
@@ -262,13 +226,12 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
 
                         # Check if each link length is within the desired range
                         for i in range(3):
-                            if 0.99 <= link_lengths[i] <= 1.00:
+                            if 0.99 <= robot.link_lengths[i] <= 1.00:
                                 control_signals[i] = 0
 
-                        # Update the goal point position relative to the updated grab point
-                        goal_point = grab_point - relative_goal_position
-
-                        
+                                # '''
+                                # TODO: UNDATE the goal object along time for plot purpose
+                                # '''
 
 
                         # Check if all link lengths are within the desired range
@@ -283,15 +246,13 @@ def main(jax_params, obstacle_position, obstacle_velocity, goal_point, dt, contr
                                 
                             break
 
+        # Update the robot's link lengths using the Robot instance
+        robot.update_link_lengths(control_signals, dt)
 
-
-        # Update link lengths using Euler integration
-
-       
-        link_lengths = integrate_link_lengths(link_lengths, control_signals, dt)
+        # Update the environment
+        env.update_obstacles(dt)
 
         total_time += dt
-
 
         # if robot stuck, just break
         if max(abs(control_signals)) < 5e-3:
@@ -315,7 +276,7 @@ if __name__ == '__main__':
     pytorch_net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS)
 
     # Load state_dict from file
-    state_dict = torch.load("trained_models/torch_models/trained_model_eikonal.pth")
+    state_dict = torch.load("trained_models/torch_models/baseline_2.pth")
     pytorch_net.load_state_dict(state_dict)
 
     # Define your JAX model
@@ -353,7 +314,7 @@ if __name__ == '__main__':
 
 
     #xlim_left = [2.46, 2.56]
-    xlim_right = [2.4, 2.46]
+    xlim_right = [2.6, 2.66]
     #ylim = [0.5, 3.8]
     ylim = [3.02, 3.1]
     #goal_xlim_left = [-2.5, -2.]
@@ -366,11 +327,15 @@ if __name__ == '__main__':
 
     dt = 0.05
 
-    #control_modes = ['clf_cbf', 'mppi']
+    control_modes = ['clf_cbf', 'mppi', 'clf_qp', 'random']
 
-    control_modes = ['mppi']
+    # control_modes = ['mppi']
 
     #control_modes = ['random']
+
+
+
+    obst_radius = 0.3
 
     for i in range(num_environments):
         obstacle_positions, obstacle_velocities, goal_point = generate_random_env(
@@ -386,7 +351,15 @@ if __name__ == '__main__':
             total_time = 0.0
 
             for j in range(num_trials):
-                trial_success, trial_collision, trial_time = main(jax_params, obstacle_positions, obstacle_velocities, goal_point, dt, mode, env_idx=i, trial_idx=j)
+                # Create a Robot instance
+                robot = Robot(num_links=4, nominal_length=1.0, left_base=jnp.array([-0.15, 0.0]), right_base=jnp.array([0.15, 0.0]))
+
+
+                # Create  the operation environment
+                env = Environment(obstacle_positions=obstacle_positions, obst_radius=obst_radius, obstacle_velocities=obstacle_velocities, goal_point=goal_point)
+
+
+                trial_success, trial_collision, trial_time = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j)
                 success_count += trial_success
                 collision_count += trial_collision
                 total_time += trial_time

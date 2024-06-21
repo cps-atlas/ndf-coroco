@@ -7,7 +7,7 @@ from jax.random import multivariate_normal
 from jax import jit, lax
 
 from main_csdf import evaluate_model, compute_cbf_value_and_grad
-from utils import get_last_link_middle_points
+from utils import get_last_link_grasp_points
 
 # if no gpu available
 # jax.config.update('jax_platform_name', 'cpu')
@@ -112,7 +112,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
             # print('cost_goal_coeff:', cost_goal_coeff)
 
 
-            left_middle, right_middle = get_last_link_middle_points(left_base, right_base, robot_state.squeeze(), nominal_length)
+            left_middle, right_middle = get_last_link_grasp_points(left_base, right_base, robot_state.squeeze(), nominal_length)
 
             # Determine which point to use for the distance calculation
             grab_point = jnp.where(jnp.linalg.norm(left_middle - goal) < jnp.linalg.norm(right_middle - goal), left_middle, right_middle)
@@ -147,7 +147,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
         sdf_val, _, _ = evaluate_model(jax_params, robot_state.squeeze(), goal)
         
 
-        left_middle, right_middle = get_last_link_middle_points(left_base, right_base, robot_state.squeeze(), nominal_length)
+        left_middle, right_middle = get_last_link_grasp_points(left_base, right_base, robot_state.squeeze(), nominal_length)
 
         # Determine which point to use for the distance calculation
         grab_point = jnp.where(jnp.linalg.norm(left_middle - goal) < jnp.linalg.norm(right_middle - goal), left_middle, right_middle)
@@ -162,6 +162,14 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 4, horizon=10, samples 
         cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
         cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
         cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-0.3, 0.01]))
+
+
+
+        # a cost for grasping, make sure the last link has configuration = 1
+        last_link_length = robot_state.squeeze()[-1]
+        last_link_length_cost = 10 * jnp.abs(last_link_length - 1.0)
+        cost_sample = cost_sample + last_link_length_cost
+
 
         return cost_sample, robot_states
 

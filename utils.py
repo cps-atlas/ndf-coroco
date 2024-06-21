@@ -1,8 +1,81 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import jax
 from jax import jit, lax
 import jax.numpy as jnp
+
+from network.csdf_net import CSDFNet, CSDFNet_JAX
+
+from training.config import *
+
+@jit
+def evaluate_model(jax_params, rbt_config, obstacle_points):
+    # Predict signed distances
+    @jit
+    def apply_model(params, inputs):
+        return CSDFNet_JAX(HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS).apply(params, inputs)
+
+    # Ensure obstacle_points is a 2D array
+    obstacle_points = jnp.array(obstacle_points, dtype=jnp.float32)
+    if obstacle_points.ndim == 1:
+        obstacle_points = obstacle_points.reshape(1, -1)
+
+    # Prepare the input tensor
+    configurations = jnp.repeat(jnp.array(rbt_config)[None, :], len(obstacle_points), axis=0)
+    points = obstacle_points
+    inputs = jnp.concatenate((configurations, points), axis=1)
+
+    # Forward pass
+    outputs = apply_model(jax_params, inputs)
+
+
+    # Compute the gradients using JAX automatic differentiation
+    gradients = []
+    for i in range(len(obstacle_points)):
+        point_gradients = []
+        for j in range(outputs.shape[1]):  # Loop over the output dimension
+            grad_fn = jax.grad(lambda x: apply_model(jax_params, x)[j])
+            point_gradients.append(grad_fn(inputs[i]))
+        gradients.append(jnp.array(point_gradients))
+    gradients = jnp.array(gradients)
+
+
+    # Extract the distances, gradients w.r.t robot configuration, and gradients w.r.t obstacle points
+    link_gradients = gradients[:, :, :len(rbt_config)]
+    obst_gradients = gradients[:, :, len(rbt_config):]
+
+    
+
+    return outputs, link_gradients, obst_gradients
+
+@jit
+def compute_cbf_value_and_grad(jax_params, rbt_config, obstacle_points, obstacle_velocities):
+    # Compute the distances and gradients from each link to each obstacle point
+    link_distances, link_gradients, obst_gradients = evaluate_model(jax_params, rbt_config, obstacle_points)
+
+
+
+    # Ensure link_distances has the correct shape (num_obstacle_points, num_links)
+    assert link_distances.shape[0] == len(obstacle_points), "Mismatch in number of obstacle points"
+    assert link_distances.shape[1] == len(rbt_config), "Mismatch in number of links"
+
+    # Find the minimum distance for each obstacle across all links
+    min_indices = jnp.argmin(link_distances, axis=1)
+
+    # Extract the minimum distances and corresponding gradients
+    cbf_h_vals = link_distances[jnp.arange(len(obstacle_points)), min_indices]
+    cbf_h_grads = link_gradients[jnp.arange(len(obstacle_points)), min_indices]
+
+    # print('cbf_h_vals:', cbf_h_vals)
+    # print('cbf_h_grads:', cbf_h_grads)
+
+    # Compute the CBF time derivative (cbf_t_grad) for each obstacle
+    cbf_t_grads = jnp.array([obst_gradients[i, min_indices[i]] @ obstacle_velocities[i] for i in range(len(obstacle_points))])
+
+
+    return cbf_h_vals, cbf_h_grads, cbf_t_grads
+
 
 @jit
 def calculate_link(left_base, right_base, nominal_length, left_length):
@@ -78,7 +151,7 @@ def calculate_link(left_base, right_base, nominal_length, left_length):
 
 
 @jit
-def get_last_link_middle_points(left_base, right_base, link_lengths, nominal_length):
+def get_last_link_grasp_points(left_base, right_base, link_lengths, nominal_length):
     link_lengths_jax = jnp.array(link_lengths)
 
     def body_fun(i, inputs):
@@ -92,11 +165,14 @@ def get_last_link_middle_points(left_base, right_base, link_lengths, nominal_len
     left_length = link_lengths[-1]
     left_end, right_end, left_coords, right_coords = calculate_link(left_base, right_base, nominal_length, left_length)
 
-    mid_index = len(left_coords) // 2
-    left_middle = left_coords[mid_index]
-    right_middle = right_coords[mid_index]
+    # Calculate the index for the point at 1/3 of the link's length
+    right_index = len(right_coords) // 6
+    left_index = len(left_coords) - right_index - 1
 
-    return left_middle, right_middle
+    left_point = left_coords[left_index]
+    right_point = right_coords[right_index]
+
+    return left_point, right_point
 
 
 def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
@@ -128,15 +204,15 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
         right_base = right_end
 
     # Get the left and right middle points of the last link
-    left_middle, right_middle = get_last_link_middle_points(robot_left_base, robot_right_base, link_lengths, nominal_length)
+    left_middle, right_middle = get_last_link_grasp_points(robot_left_base, robot_right_base, link_lengths, nominal_length)
 
 
 
     # Plot the left middle point
-    #ax.plot(left_middle[0], left_middle[1], 'ko', markersize=8, label='Left Middle')
+    # ax.plot(left_middle[0], left_middle[1], 'ko', markersize=8, label='Left Grasp')
 
-    # Plot the right middle point
-    #ax.plot(right_middle[0], right_middle[1], 'ko', markersize=8, label='Right Middle')
+    # # Plot the right middle point
+    # ax.plot(right_middle[0], right_middle[1], 'ko', markersize=8, label='Right Grasp')
 
     ax.set_xlim(-4, 4)
     #ax.set_ylim(-len(link_lengths) * nominal_length + 0.5, len(link_lengths) * nominal_length + 0.5)
@@ -155,10 +231,6 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
 
     return legend_elements
 
-def integrate_link_lengths(link_lengths, control_signals, dt):
-    # Euler integration to update link lengths
-    link_lengths += control_signals * dt
-    return link_lengths
 
 def generate_random_env(num_obstacles, xlim_left, xlim_right, ylim, goal_xlim_left, goal_xlim_right, goal_ylim, min_distance_obs, min_distance_goal):
     # Generate random obstacle positions and velocities
