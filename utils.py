@@ -107,6 +107,8 @@ def calculate_link(left_base, right_base, nominal_length, left_length):
     # Calculate the radius and center of the deformed link
     radius = (link_width / 2) * jnp.abs((left_length + right_length) / (right_length - left_length))
 
+
+
     center_x = base_center[0] - jnp.sign(right_length - left_length) * radius * jnp.cos(base_angle)
     center_y = base_center[1] - jnp.sign(right_length - left_length) * radius * jnp.sin(base_angle)
 
@@ -229,7 +231,7 @@ def plot_links(link_lengths, nominal_length, left_base, right_base, ax):
 
     ax.set_aspect('equal')
 
-    return legend_elements
+    return legend_elements, left_coords, right_coords
 
 
 def generate_random_env(num_obstacles, xlim_left, xlim_right, ylim, goal_xlim_left, goal_xlim_right, goal_ylim, min_distance_obs, min_distance_goal):
@@ -249,15 +251,20 @@ def generate_random_env(num_obstacles, xlim_left, xlim_right, ylim, goal_xlim_le
                 obstacle_positions.append(pos)
                 break
 
+
+
         vel = np.random.uniform(low=[-0.5, -0.5], high=[0.5, 0.5])
 
         # static obstacle
-        vel = np.array([0.0, 0.0])
+        # vel = np.array([0.0, 0.0])
 
         obstacle_velocities.append(vel)
 
     obstacle_positions = np.array(obstacle_positions)
+
     obstacle_velocities = np.array(obstacle_velocities)
+
+
 
     # Generate random goal point
     while True:
@@ -270,13 +277,28 @@ def generate_random_env(num_obstacles, xlim_left, xlim_right, ylim, goal_xlim_le
         if all(np.linalg.norm(goal_point - obs_pos) >= min_distance_goal for obs_pos in obstacle_positions):
             break
 
+    # Hard-code obstacle positions and velocities
+    obstacle_positions = [
+        np.array([1.5, 3.5]),  # First obstacle
+        np.array([1.3, -0.8])   # Second obstacle
+    ]
+    obstacle_velocities = [
+        np.array([0.5, 0.0]),  # First obstacle moves horizontally
+        np.array([0.0, 0.5])   # Second obstacle moves vertically
+    ]
+
+    obstacle_positions = np.array(obstacle_positions)
+    obstacle_velocities = np.array(obstacle_velocities)
+
+    goal_point = np.array([3.2, 0.8])
+
     return obstacle_positions, obstacle_velocities, goal_point
 
 
 
 def main():
     # Define the sequence of link lengths
-    link_lengths = [0.9, 0.9, 1.1, 1]
+    link_lengths = [0.8, 0.9, 1.1, 1]
 
     #link_lengths = [1.0, 1.0, 1.0, 1.35]
     nominal_length = 1.0
