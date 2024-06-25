@@ -14,6 +14,11 @@ from training_data.dataset import SoftRobotDataset, SoftRobotDataset_JAX
 
 from torch.utils.data import DataLoader
 
+'''
+if no GPU
+'''
+jax.config.update('jax_platform_name', 'cpu')
+
 @jit
 def evaluate_model(jax_params, rbt_config, obstacle_points):
     # Predict signed distances

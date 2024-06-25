@@ -87,7 +87,7 @@ def main(jax_params, env, robot, dt, mode='clf_cbf', env_idx=0, trial_idx=0):
         ax.clear()
 
         # Plot the links using the plot_links function
-        legend_elements = plot_links(robot.link_lengths, robot.nominal_length, robot.left_base, robot.right_base, ax)
+        legend_elements, _, _ = plot_links(robot.link_lengths, robot.nominal_length, robot.left_base, robot.right_base, ax)
 
         
         if mode in ['clf_cbf', 'mppi']:    
@@ -327,9 +327,9 @@ if __name__ == '__main__':
 
     dt = 0.05
 
-    control_modes = ['clf_cbf', 'mppi', 'clf_qp', 'random']
+    # control_modes = ['clf_cbf', 'mppi', 'clf_qp', 'random']
 
-    # control_modes = ['mppi']
+    control_modes = ['mppi']
 
     #control_modes = ['random']
 

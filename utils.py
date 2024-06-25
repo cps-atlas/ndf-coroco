@@ -9,6 +9,11 @@ from network.csdf_net import CSDFNet, CSDFNet_JAX
 
 from training.config import *
 
+'''
+if no GPU
+'''
+jax.config.update('jax_platform_name', 'cpu')
+
 @jit
 def evaluate_model(jax_params, rbt_config, obstacle_points):
     # Predict signed distances
@@ -253,10 +258,10 @@ def generate_random_env(num_obstacles, xlim_left, xlim_right, ylim, goal_xlim_le
 
 
 
-        vel = np.random.uniform(low=[-0.5, -0.5], high=[0.5, 0.5])
+        # vel = np.random.uniform(low=[-0.5, -0.5], high=[0.5, 0.5])
 
         # static obstacle
-        # vel = np.array([0.0, 0.0])
+        vel = np.array([0.0, 0.0])
 
         obstacle_velocities.append(vel)
 
