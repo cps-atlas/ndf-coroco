@@ -40,20 +40,22 @@ def main(env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     writer = imageio.get_writer(video_path, fps=int(1/dt))
 
     # Set up MPPI controller
-    prediction_horizon = 2
+    prediction_horizon = 10
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 5000
+    num_samples = 5
     costs_lambda = 0.03
     cost_goal_coeff = 18.0
     cost_safety_coeff = 2.2
     cost_goal_coeff_final = 15.0
     cost_safety_coeff_final = 1.8
 
-    control_bound = 0.2
+    control_bound = 0.1
 
     cost_state_coeff = 10.0
 
-    mppi = setup_mppi_controller(learned_CSDF=None, horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=True, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+    use_GPU = True
+
+    mppi = setup_mppi_controller(learned_CSDF=None, horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
     # Define the initial control signal
     if mode == 'random':
@@ -88,18 +90,6 @@ def main(env, robot, dt, mode='random', env_idx=0, trial_idx=0):
 
         plt.tight_layout()
 
-        # Save the current frame
-        fig.canvas.draw()
-        frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        writer.append_data(frame)
-
-        # Freeze the video at the initial states for 0.5 seconds
-        if step == 0:
-            for _ in range(int(0.5 / dt)):
-                writer.append_data(frame)
-
-        plt.close(fig)
 
         end_center, _, _ = compute_end_circle(robot.state, robot.link_radius, robot.link_length)
 
@@ -118,8 +108,38 @@ def main(env, robot, dt, mode='random', env_idx=0, trial_idx=0):
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
 
-            robot_sampled_states, robot_selected_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions)
-            
+            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions)
+
+            # Plot the trajectory of the end-effector along the selected states
+            selected_end_effectors = []
+            for i in range(selected_robot_states.shape[1]):
+                
+                robot_state = selected_robot_states[:,i].reshape(4,2)
+
+                end_center, _, _ = compute_end_circle(robot_state, robot.link_radius, robot.link_length)
+
+
+                selected_end_effectors.append(end_center)
+
+            selected_end_effectors = np.array(selected_end_effectors)
+
+            ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
+
+
+
+        # Save the current frame
+        fig.canvas.draw()
+        frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        writer.append_data(frame)
+
+        # Freeze the video at the initial states for 0.5 seconds
+        if step == 0:
+            for _ in range(int(0.5 / dt)):
+                writer.append_data(frame)
+
+        plt.close(fig)
+
 
 
         # Update the robot's edge lengths using the Robot3D instance
