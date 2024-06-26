@@ -24,6 +24,8 @@ class Robot:
 
     def get_last_link_grasp_points(self):
         return get_last_link_grasp_points(self.left_base, self.right_base, self.link_lengths, self.nominal_length)
+    
+
 
 # class Robot:
 #     def __init__(self, jax_params, num_links, nominal_length, left_base, right_base):
