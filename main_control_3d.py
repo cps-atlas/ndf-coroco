@@ -40,20 +40,20 @@ def main(env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     writer = imageio.get_writer(video_path, fps=int(1/dt))
 
     # Set up MPPI controller
-    prediction_horizon = 10
+    prediction_horizon = 20
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 5
+    num_samples = 5000
     costs_lambda = 0.03
-    cost_goal_coeff = 18.0
+    cost_goal_coeff = 12.0
     cost_safety_coeff = 2.2
-    cost_goal_coeff_final = 15.0
+    cost_goal_coeff_final = 18.0
     cost_safety_coeff_final = 1.8
 
     control_bound = 0.1
 
     cost_state_coeff = 10.0
 
-    use_GPU = True
+    use_GPU = False
 
     mppi = setup_mppi_controller(learned_CSDF=None, horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
@@ -168,9 +168,9 @@ if __name__ == '__main__':
     ylim = [-4.5, 4.5]
     zlim = [0.0, 4.0]
 
-    goal_xlim = [2.0, 3.0]
-    goal_ylim = [2.0, 3.0]
-    goal_zlim = [1.0, 2.0]
+    goal_xlim = [-3.0, 3.0]
+    goal_ylim = [-3.0, 3.0]
+    goal_zlim = [1.0, 3.0]
 
     min_distance_obs = 0.8
     min_distance_goal = 1.2

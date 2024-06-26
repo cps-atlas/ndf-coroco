@@ -8,23 +8,35 @@ import jax
 '''
 if no GPU
 '''
-# jax.config.update('jax_platform_name', 'cpu')
+jax.config.update('jax_platform_name', 'cpu')
 
 @jit
 def calculate_link_parameters(edge_lengths, link_radius):
     q1, q2, q3 = edge_lengths
     r = link_radius
+
     # Calculate theta (bending angle)
-    theta = 2 * jnp.sqrt(q1**2 + q2**2 + q3**2 - q1*q2 - q2*q3 - q1*q3) / (3 * r)
+    theta_expr = q1**2 + q2**2 + q3**2 - q1*q2 - q2*q3 - q1*q3
+
+    # jax.debug.print("🤯 {theta_exp}", theta_exp = theta_expr)
+    # print(theta_expr)
+
+    theta_expr = jnp.maximum(theta_expr, 0.0)  # Ensure non-negative value inside sqrt
+    theta = 2 * jnp.sqrt(theta_expr) / (3 * r)
     # Calculate phi (bending direction angle)
     phi = jnp.arctan2(jnp.sqrt(3) * (q2 - q3), q2 + q3 - 2*q1)
+
+    # jax.debug.print("🤯 {theta}, {phi}", theta = theta, phi = phi)
+
+    #print(theta, phi)
+
     return theta, phi
 
 @jit
 def compute_edge_points(edge_lengths, link_radius, link_length):
     theta, phi = calculate_link_parameters(edge_lengths, link_radius)
     # Calculate the bending radius
-    R = jnp.where(jnp.abs(theta) < 1e-4, jnp.inf, link_length / theta)
+    R = jnp.where(jnp.abs(theta) < 1e-10, jnp.inf, link_length / theta)
     # Generate points for the deformed link
     t = jnp.linspace(0, theta, 50)
 
@@ -107,7 +119,7 @@ def calculate_rotation_matrix(v1, v2):
     return jnp.where(s < 1e-6, jnp.eye(3), jnp.eye(3) + vx + jnp.dot(vx, vx) * (1 - c) / (s ** 2))
 
 
-#@jit
+@jit
 def compute_3rd_edge_length(state, link_length):
 
     q1, q2 = state
@@ -216,7 +228,11 @@ def main():
     link_length = 1.0
 
     # Define the states for multiple links
-    states = np.array([[1.0, 1.0], [1.1, 1.0], [1.0, 1.0], [1.0, 1.0]])
+    states = jnp.array([[1.0, 1.0], [1.1, 1.0], [1.0, 1.0], [1.0, 1.0]])
+
+    # debug state
+    # states =  jnp.array([[1.005272,  1.0100657] ,[1.      ,  0.999946] , [0.9991085, 0.9851592], [0.9849205,
+    # 0.99     ]])
 
 
     # Define the initial base center and normal
@@ -225,7 +241,6 @@ def main():
 
     end_center, end_normal, _ = compute_end_circle(states, link_radius, link_length)
 
-    print(end_center)
 
     # Plot the links
     legend_elements = plot_links_3d(states, link_radius, link_length, ax, base_center, base_normal)

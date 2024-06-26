@@ -110,7 +110,8 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
 
             # Compute the distance between the end center and the goal
             end_center_distance = jnp.linalg.norm(goal - end_center)
-            jax.debug.print("🤯 i {index} end_center_distance {x} 🤯, state {state}, radius {radius}, length {length}", index=i, x=end_center_distance, state=robot_state.reshape(1,-1), radius=link_radius, length=nominal_length)
+
+            #jax.debug.print("🤯 i {index} end_center_distance {x} 🤯, state {state},", index=i, x=end_center_distance, state=robot_state.reshape(1,-1))
 
             cost_sample = cost_sample + cost_goal_coeff * end_center_distance            
             cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [i]]-perturbation[:,[i]]).T @ control_cov_inv @ perturbation[:,[i]])[0,0]
@@ -123,15 +124,32 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
 
             # cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(cbf_h_val)- obst_radius, 0.01]))
             # Compute the state constraint violation cost
-            # state_constraint_violation = jnp.sum(jnp.maximum(min_length - robot_state.squeeze(), 0) + jnp.maximum(robot_state.squeeze() - max_length, 0))
-            # cost_sample = cost_sample + cost_state_coeff * state_constraint_violation
+            
+            # Compute the third edge length for each link
+            length_1 = robot_state.squeeze()[:, 0]
+            length_2 = robot_state.squeeze()[:, 1]
+            length_3 = 3 * nominal_length - length_1 - length_2
+
+            # Compute the state constraint violation for each edge length, including the third edge length
+            state_constraint_violation_1 = jnp.maximum(min_length - length_1, 0) + jnp.maximum(length_1 - max_length, 0)
+            state_constraint_violation_2 = jnp.maximum(min_length - length_2, 0) + jnp.maximum(length_2 - max_length, 0)
+            state_constraint_violation_3 = jnp.maximum(min_length - length_3, 0) + jnp.maximum(length_3 - max_length, 0)
+
+            # Sum up the state constraint violations for all edge lengths and all links
+            state_constraint_violation = jnp.sum(state_constraint_violation_1 + state_constraint_violation_2 + state_constraint_violation_3)
+
+            cost_sample = cost_sample + cost_state_coeff * state_constraint_violation
+
+            # jax.debug.print("🤯 i {index} length_3 {x} 🤯, state_constraint {state}", index=i, x=length_3, state=state_constraint_violation)
+
 
             # Update robot states
             robot_states = robot_states.at[:,i+1].set(robot_dynamics_step(robot_states[:,[i]], perturbed_control[:, [i]])[:,0])
             return cost_sample, robot_states, obstaclesX
         
         cost_sample, robot_states, _ = lax.fori_loop(0, horizon-1, body, (cost_sample, robot_states, obstaclesX))
-        jax.debug.print("🤯 cost_sample {x} 🤯", x=cost_sample)
+
+        # jax.debug.print("🤯 cost_sample {x} 🤯", x=cost_sample)
 
         robot_state = robot_states[:,[horizon-1]]
 
@@ -146,7 +164,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
 
         cost_sample = cost_sample + cost_goal_coeff_final * end_center_distance
 
-        # cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
+        cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
         
         
         #cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
