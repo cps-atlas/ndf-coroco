@@ -1,4 +1,4 @@
-name: neural_jsdf
+name: soft_neural_csdf
 channels:
   - pytorch
   - nvidia

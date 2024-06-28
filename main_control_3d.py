@@ -74,19 +74,41 @@ def main(env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         legend_elements = plot_links_3d(robot.state, robot.link_radius, robot.link_length, ax)
 
         # Plot the goal point
-        ax.plot([env.goal_point[0]], [env.goal_point[1]], [env.goal_point[2]], marker='*', markersize=12, color='blue', label='Goal')
+        goal_plot  = ax.plot([env.goal_point[0]], [env.goal_point[1]], [env.goal_point[2]], marker='*', markersize=12, color='blue', label='Goal')
+
+        # plot the obstacles  
+        # goal_plot, = ax.plot(env.goal_point[0], env.goal_point[1], marker='*', markersize=12, color='blue', label = 'Goal')
+        # legend_elements.append(goal_plot)
+        # Plot the obstacles
+        obstacle_plots = []
+        for i, obstacle in enumerate(env.obstacle_positions):
+            # Create a sphere
+            u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
+            x = obst_radius * np.cos(u) * np.sin(v) + obstacle[0]
+            y = obst_radius * np.sin(u) * np.sin(v) + obstacle[1]
+            z = obst_radius * np.cos(v) + obstacle[2]
+            
+            # Plot the sphere
+            sphere = ax.plot_surface(x, y, z, color='red', alpha=0.6)
+            
+            if i == 0:
+                obstacle_plot = ax.scatter([obstacle[0]], [obstacle[1]], [obstacle[2]], color='red', s=100, label='Obstacles')
+                legend_elements.append(obstacle_plot)
+
+        if obstacle_plots:
+            ax.legend(handles=legend_elements)
 
         # Set the plot limits and labels
-        ax.set_xlim(-5, 5)
-        ax.set_ylim(-5, 5)
-        ax.set_zlim(0, 4)
+        ax.set_xlim(-3, 3)
+        ax.set_ylim(-3, 3)
+        ax.set_zlim(0, 6)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
         ax.set_box_aspect((4, 4, 4))
 
         # Add legend
-        ax.legend(handles=legend_elements + [plt.Line2D([0], [0], marker='*', color='blue', linestyle='None', markersize=12, label='Goal')], loc='upper right')
+        ax.legend(handles=legend_elements + [plt.Line2D([0], [0], marker='*', color='blue', linestyle='None', markersize=12, label='Goal')])
 
         plt.tight_layout()
 
@@ -162,11 +184,11 @@ def main(env, robot, dt, mode='random', env_idx=0, trial_idx=0):
 
 if __name__ == '__main__':
     # create env for quantitative statistics
-    num_environments = 5
+    num_environments = 1
     num_trials = 1
-    xlim = [-4.5, 4.5]
-    ylim = [-4.5, 4.5]
-    zlim = [0.0, 4.0]
+    xlim = [-3, 3.5]
+    ylim = [-3.5, 3.5]
+    zlim = [0.0, 5.0]
 
     goal_xlim = [-3.0, 3.0]
     goal_ylim = [-3.0, 3.0]
@@ -182,7 +204,7 @@ if __name__ == '__main__':
 
     for i in range(num_environments):
         obstacle_positions, obstacle_velocities, goal_point = generate_random_env_3d(
-            num_obstacles=3, xlim=xlim, ylim=ylim, zlim=zlim,
+            num_obstacles=6, xlim=xlim, ylim=ylim, zlim=zlim,
             goal_xlim=goal_xlim, goal_ylim=goal_ylim, goal_zlim=goal_zlim,
             min_distance_obs=min_distance_obs, min_distance_goal=min_distance_goal
         )

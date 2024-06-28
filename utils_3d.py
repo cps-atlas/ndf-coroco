@@ -26,7 +26,7 @@ def calculate_link_parameters(edge_lengths, link_radius):
     # Calculate phi (bending direction angle)
     phi = jnp.arctan2(jnp.sqrt(3) * (q2 - q3), q2 + q3 - 2*q1)
 
-    # jax.debug.print("🤯 {theta}, {phi}", theta = theta, phi = phi)
+    #jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
 
     #print(theta, phi)
 
@@ -34,11 +34,14 @@ def calculate_link_parameters(edge_lengths, link_radius):
 
 @jit
 def compute_edge_points(edge_lengths, link_radius, link_length):
+
+    num_pts_per_edge = 50
+
     theta, phi = calculate_link_parameters(edge_lengths, link_radius)
     # Calculate the bending radius
     R = jnp.where(jnp.abs(theta) < 1e-10, jnp.inf, link_length / theta)
     # Generate points for the deformed link
-    t = jnp.linspace(0, theta, 50)
+    t = jnp.linspace(0, theta, num_pts_per_edge)
 
     # Calculate points for each edge
     edge_points = []
@@ -48,13 +51,13 @@ def compute_edge_points(edge_lengths, link_radius, link_length):
         r = link_radius
         # Calculate the x, y, z coordinates for each point along the edge
         x = jnp.where(R == jnp.inf,
-                      link_radius * jnp.cos(cable_angle) * jnp.ones_like(jnp.linspace(0, link_length, 50)),
+                      link_radius * jnp.cos(cable_angle) * jnp.ones_like(jnp.linspace(0, link_length, num_pts_per_edge)),
                       R - (R - r * jnp.cos(cable_angle)) * jnp.cos(t))
         y = jnp.where(R == jnp.inf,
-                      link_radius * jnp.sin(cable_angle) * jnp.ones_like(jnp.linspace(0, link_length, 50)),
+                      link_radius * jnp.sin(cable_angle) * jnp.ones_like(jnp.linspace(0, link_length, num_pts_per_edge)),
                       r * jnp.sin(cable_angle) * jnp.ones_like(t))
         z = jnp.where(R == jnp.inf,
-                      jnp.linspace(0, link_length, 50),
+                      jnp.linspace(0, link_length, num_pts_per_edge),
                       (R - r * jnp.cos(cable_angle)) * jnp.sin(t))
         # Rotate the points based on phi
         rotated_x = x * jnp.cos(phi) - y * jnp.sin(phi)
@@ -127,6 +130,103 @@ def compute_3rd_edge_length(state, link_length):
     edge_lengths = [q1, q2, q3]
 
     return edge_lengths
+
+
+'''
+following are non JAX functions, mainly for plotting and dataset preparation
+'''
+
+
+def compute_surface_points(states, link_radius, link_length, num_points_per_circle=50):
+    surface_points = []
+    base_center = np.zeros(3)
+    base_normal = np.array([0, 0, 1])
+
+    # Sample points on the base circle of the first link
+    base_disk_points = sample_disk_points(base_center, link_radius, base_normal, num_points=100)
+    surface_points.append(base_disk_points)
+
+
+    for state in states:
+        edge_lengths = compute_3rd_edge_length(state, link_length)
+        edge_points = compute_edge_points(edge_lengths, link_radius, link_length)
+
+        # Apply rotation and translation to the edge points
+        if not np.array_equal(base_center, np.array([0, 0, 0])):
+            rotation_matrix = calculate_rotation_matrix(np.array([0, 0, 1]), base_normal)
+            for j in range(len(edge_points)):
+                rotated_edge_points = np.dot(rotation_matrix, edge_points[j])
+                translated_edge_points = rotated_edge_points + base_center.reshape(3, 1)
+                edge_points[j] = translated_edge_points
+
+        link_surface_points = []
+
+        for i in range(len(edge_points[0][0])):
+            # Get the three edge points at the current index
+            p1 = np.array([edge_points[0][0][i], edge_points[0][1][i], edge_points[0][2][i]])
+            p2 = np.array([edge_points[1][0][i], edge_points[1][1][i], edge_points[1][2][i]])
+            p3 = np.array([edge_points[2][0][i], edge_points[2][1][i], edge_points[2][2][i]])
+
+            # Compute the center, normal, and radius of the circle
+            center = np.mean([p1, p2, p3], axis=0)
+            v1 = p2 - p1
+            v2 = p3 - p1
+            normal = np.cross(v1, v2)
+            normal = normal / np.linalg.norm(normal)
+            radius = np.linalg.norm(center - p1)
+
+            # Generate points on the circle
+            theta = np.linspace(0, 2*np.pi, num_points_per_circle)
+            x = radius * np.cos(theta)
+            y = radius * np.sin(theta)
+            z = np.zeros_like(theta)
+
+            # Rotate the circle points based on the normal vector
+            rotation_matrix = calculate_rotation_matrix(np.array([0, 0, 1]), normal)
+            rotated_points = np.dot(rotation_matrix, np.vstack((x, y, z)))
+
+            # Translate the rotated points based on the center
+            translated_points = rotated_points + center.reshape(3, 1)
+
+            # Append the circle points to the link surface points
+            link_surface_points.extend(translated_points.T)
+
+        surface_points.append(np.array(link_surface_points))
+
+        # Update the base center and normal for the next link
+        end_center, end_normal, _ = calculate_link_circle(edge_points)
+        base_center = end_center
+        base_normal = end_normal
+
+    # Sample points on the end circle of the last link
+    end_disk_points = sample_disk_points(end_center, link_radius, end_normal, num_points=100)
+    surface_points.append(end_disk_points)
+
+    return surface_points
+
+def sample_disk_points(center, radius, normal, num_points=100):
+    # Sample random radii within the disk
+    radii = np.sqrt(np.random.uniform(0, radius**2, size=num_points))
+    
+    # Sample random angles
+    angles = np.random.uniform(0, 2*np.pi, size=num_points)
+    
+    # Convert radii and angles to Cartesian coordinates
+    x = radii * np.cos(angles)
+    y = radii * np.sin(angles)
+    z = np.zeros_like(radii)
+    
+    # Stack the coordinates
+    disk_points = np.vstack((x, y, z))
+    
+    # Rotate the disk points based on the normal vector
+    rotation_matrix = calculate_rotation_matrix(np.array([0, 0, 1]), normal)
+    rotated_points = np.dot(rotation_matrix, disk_points)
+    
+    # Translate the rotated points based on the center
+    translated_points = rotated_points + center.reshape(3, 1)
+    
+    return translated_points.T
 
     
 def plot_circle(center, radius, normal, ax, color='k'):
@@ -228,7 +328,7 @@ def main():
     link_length = 1.0
 
     # Define the states for multiple links
-    states = jnp.array([[1.0, 1.0], [1.1, 1.0], [1.0, 1.0], [1.0, 1.0]])
+    states = jnp.array([[1.2, 1.0], [1.1, 1.0], [1.0, 1.0], [1.0, 1.0]])
 
     # debug state
     # states =  jnp.array([[1.005272,  1.0100657] ,[1.      ,  0.999946] , [0.9991085, 0.9851592], [0.9849205,

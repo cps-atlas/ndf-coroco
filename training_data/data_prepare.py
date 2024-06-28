@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from visualize_soft_link import calculate_link, plot_links
+from utils import calculate_link, plot_links
 
 import matplotlib.path as mpath
 

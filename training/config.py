@@ -1,6 +1,6 @@
 # training Configuration parameters
 NUM_LINKS = 4
-INPUT_SIZE = NUM_LINKS + 2  # Joint angles + 2D point
+INPUT_SIZE = NUM_LINKS  + 2  # Joint angles + 2D point
 HIDDEN_SIZE = 256
 OUTPUT_SIZE = NUM_LINKS
 NUM_LAYERS = 5

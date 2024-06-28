@@ -7,7 +7,7 @@ import jax.numpy as jnp
 
 import torch
 from network.csdf_net import CSDFNet, CSDFNet_JAX
-from training.csdf_training import train, train_with_eikonal, train_with_normal_loss, train_jax
+from training.csdf_training_3D import train_3d, train_with_eikonal_3d, train_with_normal_loss_3d, train_jax_3d
 from training.config import *
 
 from training_data.dataset import SoftRobotDataset, SoftRobotDataset_JAX
@@ -168,13 +168,13 @@ following is training with pytorch
 
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
-    with open('training_data/dataset_grid.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_small.pickle', 'rb') as f:
         training_data = pickle.load(f)
 
     # Extract configurations, workspace points, and distances from the dataset
     configurations = np.array([entry['configurations'] for entry in training_data])
     points = np.array([entry['point'] for entry in training_data])
-    distances = np.array([entry['distances'] for entry in training_data])
+    distances = np.array([entry['distance'] for entry in training_data])
     #normals = np.array([entry['normal'] for entry in training_data])
 
     # Create dataset and data loaders
@@ -198,15 +198,17 @@ def main_torch(train_eikonal=False):
 
     # Train the model
     if train_eikonal:
-        net = train_with_eikonal(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal=0.1)
+
+        net = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal=0.02)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models/new_test.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/new_test.pth")
     else:
-        net = train(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001)
+        print('training start!')
+        net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001)
         #net = train_with_normal_loss(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal = 0.1)
 
         # Save the trained model with normal loss
-        torch.save(net.state_dict(), "trained_models/torch_models/new_test.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/new_test.pth")
 
 
 '''
@@ -235,12 +237,12 @@ def main_jax(train_eikonal=True):
 
     # Train the model
     if train_eikonal:
-        trained_params = train_with_eikonal(net, dataset, NUM_EPOCHS, LEARNING_RATE, BATCH_SIZE, loss_threshold=0.1, lambda_eikonal=0.1)
+        trained_params = train_with_eikonal_3d(net, dataset, NUM_EPOCHS, LEARNING_RATE, BATCH_SIZE, loss_threshold=0.1, lambda_eikonal=0.1)
         # Save the trained model with Eikonal regularization
         with open("trained_models/jax_models/trained_eikonal.pkl", "wb") as f:
             pickle.dump(trained_params, f)
     else:
-        trained_params = train_jax(net, dataset, NUM_EPOCHS, LEARNING_RATE, BATCH_SIZE, loss_threshold=0.1)
+        trained_params = train_jax_3d(net, dataset, NUM_EPOCHS, LEARNING_RATE, BATCH_SIZE, loss_threshold=0.1)
         # Save the trained model with Eikonal regularization
         with open("trained_models/jax_models/trained_no_eikonal.pkl", "wb") as f:
             pickle.dump(trained_params, f)
