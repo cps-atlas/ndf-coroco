@@ -89,7 +89,10 @@ def train_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device,
             inputs, targets = inputs.to(device), targets.to(device)
 
             optimizer.zero_grad()
-            outputs = net(inputs)
+            outputs = net(inputs).squeeze()
+
+            # print('outputs:', outputs.shape)
+            # print('targets:', targets.shape)
             loss = torch.mean((outputs - targets)**2)
             loss.backward()
 
@@ -108,7 +111,7 @@ def train_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device,
             val_loss = 0.0
             for val_inputs, val_targets in val_dataloader:
                 val_inputs, val_targets = val_inputs.to(device), val_targets.to(device)
-                val_outputs = net(val_inputs)
+                val_outputs = net(val_inputs).squeeze()
                 val_loss += criterion(val_outputs, val_targets).item()
 
             val_loss /= len(val_dataloader)

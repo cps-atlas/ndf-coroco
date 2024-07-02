@@ -26,16 +26,28 @@ def calculate_link_parameters(edge_lengths, link_radius):
     # Calculate phi (bending direction angle)
     phi = jnp.arctan2(jnp.sqrt(3) * (q2 - q3), q2 + q3 - 2*q1)
 
-    #jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
+    # jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
 
-    #print(theta, phi)
+    '''
+    rrt* paper definition:
+    '''
+
+    # theta = 2 * jnp.sqrt(q1**2 + q2**2 - q1 * q2) / (jnp.sqrt(3) * r)
+
+    # phi = jnp.arctan2(jnp.sqrt(3) * (q2), 2*q1 - q2)
+
+
+
+    # jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
+
+
 
     return theta, phi
 
 @jit
 def compute_edge_points(edge_lengths, link_radius, link_length):
 
-    num_pts_per_edge = 50
+    num_pts_per_edge = 30
 
     theta, phi = calculate_link_parameters(edge_lengths, link_radius)
     # Calculate the bending radius
@@ -130,6 +142,20 @@ def compute_3rd_edge_length(state, link_length):
     edge_lengths = [q1, q2, q3]
 
     return edge_lengths
+
+
+@jit
+def state_to_config(edge_lengths, link_radius, link_length):
+    thetas = []
+    phis = []
+    for length in edge_lengths:
+        edge_lengths_3 = compute_3rd_edge_length(length, link_length)
+        theta, phi = calculate_link_parameters(edge_lengths_3, link_radius)
+        thetas.append(theta)
+        phis.append(phi)
+
+    #jax.debug.print("🤯 thetas: {theta}, phis: {phi}", theta = thetas, phi = phis)
+    return jnp.stack((jnp.array(thetas), jnp.array(phis)), axis=1).flatten()
 
 
 '''
@@ -316,6 +342,18 @@ def generate_random_env_3d(num_obstacles, xlim, ylim, zlim, goal_xlim, goal_ylim
         if all(np.linalg.norm(goal_point - obs_pos) >= min_distance_goal for obs_pos in obstacle_positions):
             break
 
+
+    # Hard-code obstacle positions and velocities
+    obstacle_positions = [
+        np.array([1., 1., 2.]),  # First obstacle
+        np.array([1., 1., 4.])   # Second obstacle
+    ]
+
+
+    obstacle_positions = np.array(obstacle_positions)
+
+    goal_point = np.array([1., 1., 3.])
+
     return obstacle_positions, obstacle_velocities, goal_point
 
 
@@ -345,13 +383,15 @@ def main():
     # Plot the links
     legend_elements = plot_links_3d(states, link_radius, link_length, ax, base_center, base_normal)
 
-    ax.set_xlim(-3, 3)
-    ax.set_ylim(-3, 3)
-    ax.set_zlim(0, 4)
+    ax.set_xlim(-4, 4)
+    ax.set_ylim(-4, 4)
+    ax.set_zlim(-2, 4)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_box_aspect((4, 4, 4))
+
+    # ax.view_init(elev=20, azim=45)  # Adjust the elevation and azimuth angles as needed
 
     # Add legend
     ax.legend(handles=legend_elements, loc='upper right')

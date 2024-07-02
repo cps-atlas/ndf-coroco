@@ -1,4 +1,5 @@
 import pickle
+import os
 import numpy as np
 
 import jax
@@ -8,7 +9,7 @@ import jax.numpy as jnp
 import torch
 from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.csdf_training_3D import train_3d, train_with_eikonal_3d, train_with_normal_loss_3d, train_jax_3d
-from training.config import *
+from training.config_3D import *
 
 from training_data.dataset import SoftRobotDataset, SoftRobotDataset_JAX
 
@@ -24,7 +25,7 @@ def evaluate_model(jax_params, rbt_config, obstacle_points):
     # Predict signed distances
     @jit
     def apply_model(params, inputs):
-        return CSDFNet_JAX(HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS).apply(params, inputs)
+        return CSDFNet_JAX(HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS).apply(params, inputs)
 
     # Ensure obstacle_points is a 2D array
     obstacle_points = jnp.array(obstacle_points, dtype=jnp.float32)
@@ -40,51 +41,35 @@ def evaluate_model(jax_params, rbt_config, obstacle_points):
     outputs = apply_model(jax_params, inputs)
 
 
-    # Compute the gradients using JAX automatic differentiation
-    gradients = []
-    for i in range(len(obstacle_points)):
-        point_gradients = []
-        for j in range(outputs.shape[1]):  # Loop over the output dimension
-            grad_fn = jax.grad(lambda x: apply_model(jax_params, x)[j])
-            point_gradients.append(grad_fn(inputs[i]))
-        gradients.append(jnp.array(point_gradients))
-    gradients = jnp.array(gradients)
-
+    # Compute the gradients using JAX automatic differentiation with vmap
+    grad_fn = jax.vmap(jax.grad(lambda x: apply_model(jax_params, x)[0]), in_axes=0)
+    gradients = grad_fn(inputs)
 
     # Extract the distances, gradients w.r.t robot configuration, and gradients w.r.t obstacle points
-    link_gradients = gradients[:, :, :len(rbt_config)]
-    obst_gradients = gradients[:, :, len(rbt_config):]
+    distances = outputs
+    rbt_gradients = gradients[:, :len(rbt_config)]
+    obst_gradients = gradients[:, len(rbt_config):]
 
-    
-
-    return outputs, link_gradients, obst_gradients
+    return distances, rbt_gradients, obst_gradients
 
 @jit
-def compute_cbf_value_and_grad(jax_params, rbt_config, obstacle_points, obstacle_velocities):
-    # Compute the distances and gradients from each link to each obstacle point
-    link_distances, link_gradients, obst_gradients = evaluate_model(jax_params, rbt_config, obstacle_points)
+def compute_cbf_value_and_grad(jax_params, edge_lengths, obstacle_points, obstacle_velocities, link_radius, link_length):
+    # Compute the distances and gradients from the robot to each obstacle point
+    distances, rbt_gradients, obst_gradients = evaluate_model(jax_params, edge_lengths, obstacle_points, link_radius, link_length)
 
+    # Ensure distances has the correct shape (num_obstacle_points,)
+    assert distances.shape[0] == len(obstacle_points), "Mismatch in number of obstacle points"
 
+    # Extract the minimum distance and corresponding gradients
+    min_index = jnp.argmin(distances)
+    cbf_h_val = distances[min_index]
+    cbf_h_grad = rbt_gradients[min_index]
 
-    # Ensure link_distances has the correct shape (num_obstacle_points, num_links)
-    assert link_distances.shape[0] == len(obstacle_points), "Mismatch in number of obstacle points"
-    assert link_distances.shape[1] == len(rbt_config), "Mismatch in number of links"
+    # Compute the CBF time derivative (cbf_t_grad) for the closest obstacle
+    cbf_t_grad = obst_gradients[min_index] @ obstacle_velocities[min_index]
 
-    # Find the minimum distance for each obstacle across all links
-    min_indices = jnp.argmin(link_distances, axis=1)
+    return cbf_h_val, cbf_h_grad, cbf_t_grad
 
-    # Extract the minimum distances and corresponding gradients
-    cbf_h_vals = link_distances[jnp.arange(len(obstacle_points)), min_indices]
-    cbf_h_grads = link_gradients[jnp.arange(len(obstacle_points)), min_indices]
-
-    # print('cbf_h_vals:', cbf_h_vals)
-    # print('cbf_h_grads:', cbf_h_grads)
-
-    # Compute the CBF time derivative (cbf_t_grad) for each obstacle
-    cbf_t_grads = jnp.array([obst_gradients[i, min_indices[i]] @ obstacle_velocities[i] for i in range(len(obstacle_points))])
-
-
-    return cbf_h_vals, cbf_h_grads, cbf_t_grads
 
 
 '''
@@ -168,8 +153,10 @@ following is training with pytorch
 
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
-    with open('training_data/dataset_3d_small.pickle', 'rb') as f:
+
+    with open('training_data/dataset_3d_large.pickle', 'rb') as f:
         training_data = pickle.load(f)
+
 
     # Extract configurations, workspace points, and distances from the dataset
     configurations = np.array([entry['configurations'] for entry in training_data])
@@ -186,7 +173,7 @@ def main_torch(train_eikonal=False):
     val_dataloader = DataLoader(val_dataset, BATCH_SIZE)
 
     # Create neural network
-    net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, NUM_LINKS, NUM_LAYERS)
+    net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
 
     # training with pre-trained weights
     # net.load_state_dict(torch.load("trained_models/torch_models/trained_model_no_eikonal.pth"))
@@ -194,21 +181,21 @@ def main_torch(train_eikonal=False):
     # Set the device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    device = torch.device("cpu")
+    # device = torch.device("cpu")
 
     # Train the model
     if train_eikonal:
 
         net = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal=0.02)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/new_test.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/test_1.pth")
     else:
         print('training start!')
         net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001)
         #net = train_with_normal_loss(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal = 0.1)
 
         # Save the trained model with normal loss
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/new_test.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/test_1.pth")
 
 
 '''

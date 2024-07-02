@@ -116,13 +116,15 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
             cost_sample = cost_sample + cost_goal_coeff * end_center_distance            
             cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [i]]-perturbation[:,[i]]).T @ control_cov_inv @ perturbation[:,[i]])[0,0]
 
-            # cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
+            robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
+
+            cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, obstaclesX)
 
             # print('obstacle:', obstaclesX)
 
             # print('safety_value:', cbf_h_val)
 
-            # cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(cbf_h_val)- obst_radius, 0.01]))
+            cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(cbf_h_val)- obst_radius, 0.01]))
             # Compute the state constraint violation cost
             
             # Compute the third edge length for each link
@@ -166,9 +168,12 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
 
         cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
         
-        
+        robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
+
+        cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, obstaclesX)
         #cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
-        #cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-0.3, 0.01]))
+        
+        cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-0.3, 0.01]))
 
         # a cost for grasping, make sure the last link has configuration = 1
         # last_link_length = robot_state.squeeze()[-1]
