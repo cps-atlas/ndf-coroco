@@ -2,11 +2,19 @@ import numpy as np
 import random
 import pickle
 import os
+import sys
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils_3d import *
+from jax import jit
+
+'''
+if no GPU
+'''
+jax.config.update('jax_platform_name', 'cpu')
 
 import jax.numpy as jnp
-from jax import jit
 
 def generate_grid_points(x_range, y_range, z_range, resolution):
     x = np.linspace(x_range[0], x_range[1], resolution)

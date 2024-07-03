@@ -4,7 +4,7 @@ import pickle
 
 # Concatenate the dataset files
 dataset = []
-for i in range(2):
+for i in range(3):
     file_name = f'dataset_3d_large_{i}.pickle'
     if os.path.exists(file_name):
         with open(file_name, 'rb') as f:

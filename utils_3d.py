@@ -1,14 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-import jax.numpy as jnp
-from jax import jit, vmap
 import jax
 
 '''
 if no GPU
 '''
 jax.config.update('jax_platform_name', 'cpu')
+
+import jax.numpy as jnp
+from jax import jit, vmap
 
 @jit
 def calculate_link_parameters(edge_lengths, link_radius):

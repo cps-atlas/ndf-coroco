@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.config_3D import *
 
-from skimage import measure
+# from skimage import measure
 
 from utils_3d import *
 
