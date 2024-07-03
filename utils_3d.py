@@ -32,16 +32,10 @@ def calculate_link_parameters(edge_lengths, link_radius):
     '''
     rrt* paper definition:
     '''
-
     # theta = 2 * jnp.sqrt(q1**2 + q2**2 - q1 * q2) / (jnp.sqrt(3) * r)
 
     # phi = jnp.arctan2(jnp.sqrt(3) * (q2), 2*q1 - q2)
-
-
-
     # jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
-
-
 
     return theta, phi
 
@@ -158,6 +152,39 @@ def state_to_config(edge_lengths, link_radius, link_length):
     #jax.debug.print("🤯 thetas: {theta}, phis: {phi}", theta = thetas, phi = phis)
     return jnp.stack((jnp.array(thetas), jnp.array(phis)), axis=1).flatten()
 
+
+
+@jit
+def forward_kinematics(states, link_radius, link_length):
+    base_center = jnp.zeros(3)
+    base_normal = jnp.array([0, 0, 1])
+    transformations = [jnp.eye(4)]
+
+    for i in range(len(states)-1):
+        # Compute the end circle and normal for the current link
+        end_center, end_normal, _ = compute_end_circle(states[:i+1], link_radius, link_length, base_center, base_normal)
+
+        rotation_matrix = calculate_rotation_matrix(base_normal, end_normal)
+        translation = end_center - base_center
+
+        transformation = jnp.eye(4)
+        transformation = transformation.at[:3, :3].set(rotation_matrix)
+        transformation = transformation.at[:3, 3].set(translation)
+
+        transformations.append(transformation)
+
+    return transformations
+
+@jit
+def transform_point_to_link_frame(point, transformations):
+    homogeneous_point = jnp.append(point, 1)
+    link_frames = []
+
+    for transformation in transformations:
+        link_frame_point = jnp.dot(jnp.linalg.inv(transformation), homogeneous_point)
+        link_frames.append(link_frame_point[:3])
+
+    return jnp.array(link_frames)
 
 '''
 following are non JAX functions, mainly for plotting and dataset preparation
@@ -367,7 +394,7 @@ def main():
     link_length = 1.0
 
     # Define the states for multiple links
-    states = jnp.array([[1.2, 1.0], [1.1, 1.0], [1.0, 1.0], [1.0, 1.0]])
+    states = jnp.array([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
 
     # debug state
     # states =  jnp.array([[1.005272,  1.0100657] ,[1.      ,  0.999946] , [0.9991085, 0.9851592], [0.9849205,
@@ -379,6 +406,16 @@ def main():
     base_normal = np.array([0, 0, 1])
 
     end_center, end_normal, _ = compute_end_circle(states, link_radius, link_length)
+
+    transformations = forward_kinematics(states, link_radius, link_length)
+
+    print('transmations:', transformations)
+
+    point_ws = np.array([2,2,0])
+
+    link_frames = transform_point_to_link_frame(point_ws, transformations)
+
+    print('link_frames:', link_frames)
 
 
     # Plot the links
