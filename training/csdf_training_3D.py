@@ -18,7 +18,7 @@ from training.config import *
 '''
 if no GPU
 '''
-jax.config.update('jax_platform_name', 'cpu')
+# jax.config.update('jax_platform_name', 'cpu')
 
 '''
 JAX training without eikonal constraint
@@ -91,8 +91,6 @@ def train_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device,
             optimizer.zero_grad()
             outputs = net(inputs).squeeze()
 
-            # print('outputs:', outputs.shape)
-            # print('targets:', targets.shape)
             loss = torch.mean((outputs - targets)**2)
             loss.backward()
 
@@ -129,7 +127,7 @@ def train_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device,
 training with eikonal constraint
 '''
 
-def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.1):
+def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.02):
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, weight_decay=1e-5)
     net.to(device)
@@ -142,7 +140,7 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
-            outputs = net(inputs)
+            outputs = net(inputs).squeeze()
 
             # Distance loss
             distance_loss = criterion(outputs, targets)
@@ -151,15 +149,14 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
             eikonal_loss = 0.0
 
 
-            for i in range(outputs.shape[1]):
-                workspace_pt_grad = torch.autograd.grad(outputs[:, i], inputs, grad_outputs=torch.ones_like(outputs[:, i]),
-                                                        create_graph=True, allow_unused=True)[0][:, -2:]
+  
+            workspace_pt_grad = torch.autograd.grad(outputs, inputs, grad_outputs=torch.ones_like(outputs),
+                                                    create_graph=True, allow_unused=True)[0][:, -3:]
                 
 
-                eikonal_loss += torch.mean((torch.norm(workspace_pt_grad, dim=1) - 1.0) ** 2)
-                #print('eikonal_loss:', eikonal_loss)
+            eikonal_loss += torch.mean((torch.norm(workspace_pt_grad, dim=1) - 1.0) ** 2)
+            #print('eikonal_loss:', eikonal_loss)
 
-            eikonal_loss = eikonal_loss / outputs.shape[1]
             # Total loss
             loss = distance_loss + lambda_eikonal * eikonal_loss
 
@@ -180,7 +177,7 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
             val_loss = 0.0
             for val_inputs, val_targets in val_dataloader:
                 val_inputs, val_targets = val_inputs.to(device), val_targets.to(device)
-                val_outputs = net(val_inputs)
+                val_outputs = net(val_inputs).squeeze()
                 val_loss += criterion(val_outputs, val_targets).item()
             val_loss /= len(val_dataloader)
             print(f"Validation Loss: {val_loss:.4f}")

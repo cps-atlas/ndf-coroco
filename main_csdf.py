@@ -15,13 +15,16 @@ from training_data.dataset import SoftRobotDataset, SoftRobotDataset_JAX
 
 from torch.utils.data import DataLoader
 
+from utils_3d import *
+from robot_config import *
+
 '''
 if no GPU
 '''
-jax.config.update('jax_platform_name', 'cpu')
+# jax.config.update('jax_platform_name', 'cpu')
 
 @jit
-def evaluate_model(jax_params, rbt_config, obstacle_points):
+def evaluate_model(jax_params, rbt_configs, cable_lengths, link_radius, link_length, obstacle_points):
     # Predict signed distances
     @jit
     def apply_model(params, inputs):
@@ -32,23 +35,72 @@ def evaluate_model(jax_params, rbt_config, obstacle_points):
     if obstacle_points.ndim == 1:
         obstacle_points = obstacle_points.reshape(1, -1)
 
-    # Prepare the input tensor
-    configurations = jnp.repeat(jnp.array(rbt_config)[None, :], len(obstacle_points), axis=0)
-    points = obstacle_points
-    inputs = jnp.concatenate((configurations, points), axis=1)
+    rbt_configs = rbt_configs.reshape(NUM_OF_LINKS, 2)
 
-    # Forward pass
-    outputs = apply_model(jax_params, inputs)
+    num_links = len(rbt_configs)
+    num_points = obstacle_points.shape[0]
 
+    # Compute the transformations using forward kinematics
+    transformations = forward_kinematics(cable_lengths, link_radius, link_length)
 
-    # Compute the gradients using JAX automatic differentiation with vmap
-    grad_fn = jax.vmap(jax.grad(lambda x: apply_model(jax_params, x)[0]), in_axes=0)
-    gradients = grad_fn(inputs)
+    # Exclude the end-effector transformation
+    transformations = transformations[:-1]
 
-    # Extract the distances, gradients w.r.t robot configuration, and gradients w.r.t obstacle points
-    distances = outputs
-    rbt_gradients = gradients[:, :len(rbt_config)]
-    obst_gradients = gradients[:, len(rbt_config):]
+    # Initialize the minimum distance array and closest link index array
+    min_distances = jnp.full(num_points, jnp.inf)
+    closest_link_indices = jnp.zeros(num_points, dtype=jnp.int32)
+
+    # Initialize the gradients arrays
+    rbt_gradients = jnp.zeros((num_points, num_links * 2))
+    obst_gradients = jnp.zeros((num_points, 3))
+
+    for i in range(num_links):
+        # Transform the points to the current link's local frame
+        points_link = jnp.dot(jnp.linalg.inv(transformations[i]), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3]
+
+        # Prepare the input tensor for the current link
+        inputs_link = jnp.hstack((jnp.repeat(rbt_configs[i].reshape(1, -1), num_points, axis=0), points_link))
+
+        # Forward pass
+        outputs_link = apply_model(jax_params, inputs_link)
+
+        # Update the minimum distance array and closest link index array
+        distances_link = outputs_link[:, 0]
+        mask = distances_link < min_distances
+        min_distances = jnp.where(mask, distances_link, min_distances)
+        closest_link_indices = jnp.where(mask, i, closest_link_indices)
+
+        # Compute the gradients using JAX automatic differentiation with vmap
+        grad_fn = jax.vmap(jax.grad(lambda x: apply_model(jax_params, x)[0]), in_axes=0)
+        gradients = grad_fn(inputs_link)
+
+        # Update the obstacle gradients array
+        obst_gradients = jnp.where(mask[:, None], gradients[:, 2:], obst_gradients)
+
+    # Compute the robot gradients using chain rule
+    # for i in range(num_links):
+    #     # Prepare the input tensor for the current link
+    #     points_link = jnp.dot(jnp.linalg.inv(transformations[i]), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3]
+    #     inputs_link = jnp.hstack((jnp.repeat(rbt_configs[i].reshape(1, -1), num_points, axis=0), points_link))
+
+    #     # Compute the gradients using JAX automatic differentiation with vmap
+    #     grad_fn = jax.vmap(jax.grad(lambda x: apply_model(jax_params, x)[0]), in_axes=0)
+    #     gradients = grad_fn(inputs_link)
+
+    #     # Update the robot gradients array based on the closest link
+    #     mask_closest = closest_link_indices == i
+    #     rbt_gradients = rbt_gradients.at[mask_closest, i*2:(i+1)*2].set(gradients[mask_closest, :2])
+
+    #     # Apply chain rule for links before the closest link
+    #     for j in range(i):
+    #         # Compute the Jacobian matrix using JAX automatic differentiation
+    #         jacobian_fn = jax.jacfwd(lambda x: jnp.dot(jnp.linalg.inv(transformations[j]), jnp.hstack((x, jnp.ones((num_points, 1)))).T).T[:, :3])
+    #         jacobian = jacobian_fn(obstacle_points)
+
+    #         # Update the robot gradients array using chain rule
+    #         rbt_gradients = rbt_gradients.at[mask_closest, j*2:(j+1)*2].add(jnp.einsum('ijk,ik->ij', jacobian[mask_closest], gradients[mask_closest, 2:]))
+
+    distances = min_distances
 
     return distances, rbt_gradients, obst_gradients
 
@@ -71,81 +123,6 @@ def compute_cbf_value_and_grad(jax_params, edge_lengths, obstacle_points, obstac
     return cbf_h_val, cbf_h_grad, cbf_t_grad
 
 
-
-'''
-following are evaluations with torch net
-'''
-
-# def evaluate_model(net, rbt_config, obstacle_points):
-#     # Ensure obstacle_points is a 2D array
-#     obstacle_points = np.array(obstacle_points, dtype=np.float32)
-#     if obstacle_points.ndim == 1:
-#         obstacle_points = obstacle_points.reshape(1, -1)
-
-#     # Prepare the input tensor
-#     configurations = torch.from_numpy(rbt_config).float().unsqueeze(0).repeat(len(obstacle_points), 1)
-#     points = torch.from_numpy(obstacle_points).float()
-#     inputs = torch.cat((configurations, points), dim=1)
-#     inputs.requires_grad = True
-
-#     # Forward pass
-#     net.eval()
-#     outputs = net(inputs)
-
-#     # Compute the gradients using back-propagation
-#     gradients = []
-#     for i in range(len(obstacle_points)):
-#         point_gradients = []
-#         for j in range(outputs.shape[1]):
-#             net.zero_grad()
-#             outputs[i, j].backward(retain_graph=True)
-#             point_gradients.append(inputs.grad[i].numpy().copy())
-#             inputs.grad.zero_()
-#         gradients.append(np.array(point_gradients))
-#     gradients = np.array(gradients)
-
-#     # Extract the distances, gradients w.r.t robot configuration, and gradients w.r.t obstacle points
-#     distances = outputs.detach().numpy()
-#     link_gradients = gradients[:, :, :len(rbt_config)]
-#     obst_gradients = gradients[:, :, len(rbt_config):]
-
-#     # Convert numpy arrays back to JAX arrays
-#     distances_jax = jnp.array(distances)
-#     link_gradients_jax = jnp.array(link_gradients)
-#     obst_gradients_jax = jnp.array(obst_gradients)
-
-
-#     return distances_jax, link_gradients_jax, obst_gradients_jax
-
-# def compute_cbf_value_and_grad(net, rbt_config, obstacle_points, obstacle_velocities):
-#     # Compute the distances and gradients from each link to each obstacle point
-#     link_distances, link_gradients, obst_gradients = evaluate_model(net, rbt_config, obstacle_points)
-
-    
-#     # Ensure link_distances has the correct shape (num_obstacle_points, num_links)
-#     assert link_distances.shape[0] == len(obstacle_points), "Mismatch in number of obstacle points"
-#     assert link_distances.shape[1] == len(rbt_config), "Mismatch in number of links"
-    
-#     # Find the minimum distance for each obstacle across all links
-#     min_indices = np.argmin(link_distances, axis=1)
-
-#     # Extract the minimum distances and corresponding gradients
-#     cbf_h_vals = link_distances[np.arange(len(obstacle_points)), min_indices]
-#     cbf_h_grads = link_gradients[np.arange(len(obstacle_points)), min_indices]
-
-#     # print('cbf_h_vals:', cbf_h_vals)
-#     # print('cbf_h_grads:', cbf_h_grads)
-
-#     # Compute the CBF time derivative (cbf_t_grad) for each obstacle
-#     cbf_t_grads = []
-#     for i in range(len(obstacle_points)):
-#         cbf_t_grad = obst_gradients[i, min_indices[i]] @ obstacle_velocities[i]
-#         cbf_t_grads.append(cbf_t_grad)
-#     cbf_t_grads = np.array(cbf_t_grads)
-
-#     return cbf_h_vals, cbf_h_grads, cbf_t_grads
-
-
 '''
 following is training with pytorch
 
@@ -154,12 +131,12 @@ following is training with pytorch
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
 
-    with open('training_data/dataset_3d_large.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link_large.pickle', 'rb') as f:
         training_data = pickle.load(f)
 
 
     # Extract configurations, workspace points, and distances from the dataset
-    configurations = np.array([entry['configurations'] for entry in training_data])
+    configurations = np.array([entry['configuration'] for entry in training_data])
     points = np.array([entry['point'] for entry in training_data])
     distances = np.array([entry['distance'] for entry in training_data])
     #normals = np.array([entry['normal'] for entry in training_data])
@@ -185,13 +162,14 @@ def main_torch(train_eikonal=False):
 
     # Train the model
     if train_eikonal:
+        print('training with eikonal start!')
 
-        net = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal=0.02)
+        net = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.02)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/test_1.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train.pth")
     else:
         print('training start!')
-        net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001)
+        net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4)
         #net = train_with_normal_loss(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=0.001, lambda_eikonal = 0.1)
 
         # Save the trained model with normal loss
@@ -209,7 +187,7 @@ def main_jax(train_eikonal=True):
         training_data = pickle.load(f)
     
     # Extract configurations, workspace points, and distances from the dataset
-    configurations = jnp.array([entry['configurations'] for entry in training_data])
+    configurations = jnp.array([entry['configuration'] for entry in training_data])
     points = jnp.array([entry['point'] for entry in training_data])
     distances = jnp.array([entry['distances'] for entry in training_data])
 
@@ -238,7 +216,7 @@ def main_jax(train_eikonal=True):
 
 if __name__ == "__main__":
     # Specify to Train with Eikonal or not 
-    train_eikonal = False
+    train_eikonal = True
 
     main_torch(train_eikonal)
 

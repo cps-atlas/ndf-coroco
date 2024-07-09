@@ -12,7 +12,7 @@ from jax import jit
 '''
 if no GPU
 '''
-jax.config.update('jax_platform_name', 'cpu')
+# jax.config.update('jax_platform_name', 'cpu')
 
 import jax.numpy as jnp
 
@@ -68,15 +68,8 @@ def prepare_training_data_3d(num_configs, length_range, num_links, link_radius, 
         # Flatten the surface points list into a single array
         surface_points = np.concatenate(surface_points_list, axis=0)
 
-        #print('surface_points:', surface_points)
-
-        # print(thetas)
-        # print(phis)
-
-        # Flatten the configurations: order: theta1, phi1, theta2, phi2, ...
+        # Flatten the configurations: order: theta1, phi1
         configurations = np.stack((thetas, phis), axis=1).flatten()
-
-        #print('confirgurations:', configurations)
 
         # Add surface points to the dataset with distance 0
         for point in surface_points:

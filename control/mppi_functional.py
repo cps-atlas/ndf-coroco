@@ -10,6 +10,7 @@ from main_csdf import evaluate_model, compute_cbf_value_and_grad
 from utils import get_last_link_grasp_points
 
 from utils_3d import *
+from robot_config import *
 
 # if no gpu available
 # jax.config.update('jax_platform_name', 'cpu')
@@ -85,15 +86,14 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
         robot_states = robot_states.at[:,0].set(robot_states_init)
 
         # Define the state constraints
-        min_length = 0.8
-        max_length = 1.2
+        nominal_length = LINK_LENGTH
 
-        nominal_length = 1.0
+        min_length = 0.8 * nominal_length
+        max_length = 1.2 * nominal_length
+        link_radius = LINK_RADIUS
 
-        link_radius = 0.15
-
-
-        obst_radius = 0.3
+        # 0.2 is a safety margin
+        obst_radius = 0.6 + 0.2
 
         # loop over horizon
         cost_sample = 0
@@ -118,7 +118,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
 
             robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
 
-            cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, obstaclesX)
+            cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
 
             # print('obstacle:', obstaclesX)
 
@@ -170,10 +170,11 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
         
         robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
 
-        cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, obstaclesX)
+
+        cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
         #cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
         
-        cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-0.3, 0.01]))
+        cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-obst_radius, 0.01]))
 
         # a cost for grasping, make sure the last link has configuration = 1
         # last_link_length = robot_state.squeeze()[-1]

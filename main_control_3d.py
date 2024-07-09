@@ -1,31 +1,26 @@
 import os
-
 import numpy as np
 import matplotlib.pyplot as plt
-import torch
-
 import imageio
-
-from utils_3d import * 
-
-
-import matplotlib.pyplot as plt
-
 import jax
 import jax.numpy as jnp
 
-from network.csdf_net import CSDFNet, CSDFNet_JAX
-from training.config_3D import *
+from flax.core import freeze
 
+
+
+from utils_3d import * 
+from training.config_3D import *
+from plot_utils import plot_distances
 
 from control.mppi_functional import setup_mppi_controller
-
 from main_csdf import evaluate_model
-
-from flax.core import freeze
 
 from robot_3D import Robot3D
 from operate_env import Environment
+from robot_config import * 
+from evaluate_heatmap_3d import load_learned_csdf
+
 
 def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     # Initialize the parameters for return
@@ -46,16 +41,16 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     writer = imageio.get_writer(video_path, fps=int(1/dt))
 
     # Set up MPPI controller
-    prediction_horizon = 40
+    prediction_horizon = 20
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 5000
+    num_samples = 2000
     costs_lambda = 0.03
     cost_goal_coeff = 16.0
     cost_safety_coeff = 1.1
     cost_goal_coeff_final = 18.0
     cost_safety_coeff_final = 1.1
 
-    control_bound = 0.2
+    control_bound = 0.25
 
     cost_state_coeff = 10.0
 
@@ -69,7 +64,10 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     elif mode == 'mppi':
         control_signals = np.zeros(2 * robot.num_links)
 
-    num_steps = 200
+    num_steps = 100
+
+    goal_distances = []
+    estimated_obstacle_distances = []
 
     for step in range(num_steps):
         # Create a new figure and 3D axis for each frame
@@ -105,9 +103,9 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
             ax.legend(handles=legend_elements)
 
         # Set the plot limits and labels
-        ax.set_xlim(-3, 3)
-        ax.set_ylim(-3, 3)
-        ax.set_zlim(0, 6)
+        ax.set_xlim(-6, 6)
+        ax.set_ylim(-6, 6)
+        ax.set_zlim(-2, 10)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
@@ -124,12 +122,17 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         # Calculate the distance between the end center and the goal point
         goal_distance = np.linalg.norm(end_center - env.goal_point)
 
+        goal_distances.append(goal_distance)
+
+        print('distance_to_goal:', goal_distance)
+
         # convert robot state (cable lengths) to configurations
         robot_config = state_to_config(robot.state, robot.link_radius, robot.link_length)
 
-        sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, env.obstacle_positions)
+        sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
 
-        print('estimated_distances:', sdf_val)
+        estimated_obstacle_distances.append(sdf_val)
+        print('estimated_obst_distances:', sdf_val)
 
 
         if mode == 'random':
@@ -180,6 +183,9 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         # Update the robot's edge lengths using the Robot3D instance
         robot.update_edge_lengths(control_signals, dt)
 
+        # Update the environment
+        env.update_obstacles(dt)
+
         total_time += dt
 
         # Check if the goal is reached
@@ -187,68 +193,43 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
             print("Goal Reached!")
             success_count = 1
             # Freeze the video for an additional 0.5 seconds
-            for _ in range(int(0.5 / dt)):
+            for _ in range(int(0.8 / dt)):
                 writer.append_data(frame)
             break
 
     writer.close()
 
-    return success_count, collision_count, total_time
+    return success_count, collision_count, total_time, goal_distances, estimated_obstacle_distances
 
 if __name__ == '__main__':
 
+    model_type = 'jax'
 
+    net = load_learned_csdf(model_type)
 
-    # load the learned C-SDF model
-    pytorch_net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
-
-    # Load state_dict from file
-    state_dict = torch.load("trained_models/torch_models_3d/test_1.pth")
-    pytorch_net.load_state_dict(state_dict)
-
-    # Define your JAX model
-    jax_net = CSDFNet_JAX(HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
-
-    # Initialize JAX model parameters
-    rng = jax.random.PRNGKey(0)
-    jax_params = jax_net.init(rng, jnp.zeros((1, INPUT_SIZE)))
-
-
-    # Transfer weights from PyTorch to JAX
-    def transfer_weights(pytorch_dict):
-        new_params = {'params': {}}
-        for i in range(NUM_LAYERS):
-            new_params['params'][f'Dense_{i}'] = {
-                'kernel': jnp.array(pytorch_dict[f'hidden_layers.{i}.weight'].T),
-                'bias': jnp.array(pytorch_dict[f'hidden_layers.{i}.bias'])
-            }
-        return freeze(new_params)
-    
-    # Initialize JAX model parameters
-    rng = jax.random.PRNGKey(0)
-    _, jax_params = jax_net.init_with_output(rng, jnp.zeros((1, INPUT_SIZE)))
-
-    # Transfer weights from PyTorch to JAX
-    jax_params = transfer_weights(pytorch_net.state_dict())
+    jax_params = net.params
 
     # create env for quantitative statistics
-    num_environments = 1
+    num_environments = 5
     num_trials = 1
-    xlim = [-3, 3.5]
-    ylim = [-3.5, 3.5]
-    zlim = [0.0, 5.0]
+    xlim = [-4, 4]
+    ylim = [-4, 4]
+    zlim = [-1, 6.0]
 
-    goal_xlim = [-3.0, 3.0]
-    goal_ylim = [-3.0, 3.0]
-    goal_zlim = [1.0, 3.0]
+    goal_xlim = [-4.0, 4.0]
+    goal_ylim = [-4.0, 4.0]
+    goal_zlim = [-1.0, 6.0]
 
-    min_distance_obs = 0.8
-    min_distance_goal = 1.2
+    min_distance_obs = 1.5
+    min_distance_goal = 2.0
 
     dt = 0.05
     control_modes = ['mppi']
 
-    obst_radius = 0.4
+    obst_radius = 0.6
+
+    # Create a directory to store the distance plots
+    os.makedirs('distance_plots', exist_ok=True)
 
     for i in range(num_environments):
         obstacle_positions, obstacle_velocities, goal_point = generate_random_env_3d(
@@ -265,15 +246,24 @@ if __name__ == '__main__':
 
             for j in range(num_trials):
                 # Create a Robot3D instance
-                robot = Robot3D(num_links=4, link_radius=0.15, link_length=1.0)
+                robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
                 # Create the operation environment
                 env = Environment(obstacle_positions=obstacle_positions, obstacle_velocities=obstacle_velocities, obst_radius=obst_radius, goal_point=goal_point)
 
-                trial_success, trial_collision, trial_time = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j)
+                trial_success, trial_collision, trial_time, goal_distances, estimated_obstacle_distances = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j)
                 success_count += trial_success
                 collision_count += trial_collision
                 total_time += trial_time
+
+                estimated_obstacle_distances = np.array(estimated_obstacle_distances)
+
+                # Generate a unique name for the distance plot
+                plot_name = f'env{i+1}_{mode}_trial{j+1}_distances.png'
+                plot_path = os.path.join('distance_plots', plot_name)
+                
+                # Save the distance plot with the unique name
+                plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path=plot_path)
 
             success_rate = success_count / num_trials
             collision_rate = collision_count / num_trials

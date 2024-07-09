@@ -1,7 +1,7 @@
 
 
 class Environment:
-    def __init__(self, obstacle_positions, obstacle_velocities, obst_radius, goal_point, period=6.0):
+    def __init__(self, obstacle_positions, obstacle_velocities, obst_radius, goal_point, period=3):
         self.num_obstacles = len(obstacle_positions)
         self.obstacle_positions = obstacle_positions
         self.initial_velocities = obstacle_velocities.copy()  

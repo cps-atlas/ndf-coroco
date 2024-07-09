@@ -8,92 +8,26 @@ import matplotlib.pyplot as plt
 from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.config_3D import *
 
-# from skimage import measure
+from skimage import measure
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from utils_3d import *
 
 from flax.core import freeze
+
+from robot_config import *
 
 '''
 if no GPU
 '''
 # jax.config.update('jax_platform_name', 'cpu')
 
-def evaluate_csdf_3d(net, configuration, points, resolution = None, model_type='jax'):
-
-    # Prepare the input tensor
-    configurations = np.repeat(configuration.reshape(1, -1), points.shape[0], axis=0)
-
-    inputs = np.hstack((configurations, points))
-
-    if model_type == 'torch':
-        inputs_tensor = torch.from_numpy(inputs).float()
-        # Evaluate the signed distance values
-        net.eval()
-        with torch.no_grad():
-            outputs = net(inputs_tensor)
-        min_sdf_distance = np.min(outputs.numpy(), axis=1)
-    elif model_type == 'jax':
-        inputs_tensor = jnp.array(inputs)
-        # Evaluate the signed distance values
-        outputs = net.apply(net.params, inputs)
-        min_sdf_distance = np.min(np.array(outputs), axis=1)
-    else:
-        raise ValueError(f"Invalid model type: {model_type}. Supported types are 'torch' and 'jax'.")
-
-    if resolution is None:
-        return min_sdf_distance
-    else:
-        distances = min_sdf_distance.reshape(resolution, resolution, resolution)
-        return distances
-
-def plot_csdf_heatmap_3d(configuration, distances, x_range, y_range, z_range, save_path=None):
-    # Create a figure and 3D axis
-    fig = plt.figure(figsize=(8, 8), dpi=150)
-    ax = fig.add_subplot(111, projection='3d')
-
-    link_radius = 0.15
-    link_length = 1.0
-
-    base_center = np.zeros(3)
-    base_normal = np.array([0, 0, 1])
-
-    plot_links_3d(configuration, link_radius, link_length, ax, base_center, base_normal)
-
-    # Generate a grid of points in the workspace
-    x = np.linspace(x_range[0], x_range[1], distances.shape[0])
-    y = np.linspace(y_range[0], y_range[1], distances.shape[1])
-    z = np.linspace(z_range[0], z_range[1], distances.shape[2])
-    xx, yy, zz = np.meshgrid(x, y, z, indexing='ij')
-
-    # Plot the heatmap of the signed distance values
-    cmap = plt.get_cmap('coolwarm')
-    sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.1, s=1)
-    fig.colorbar(sc, ax=ax, label='Distance')
-
-    # # Set the limits and labels of the plot
-    ax.set_xlim(x_range)
-    ax.set_ylim(y_range)
-    ax.set_zlim(z_range)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-
-    ax.set_title('C-SDF Heatmap')
-
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path, dpi=300)  # Save the figure in high resolution
-    plt.show()
-
-def main():
-    # Define the model type to evaluate ('torch' or 'jax')
-    model_type = 'jax'
+def load_learned_csdf(model_type):
 
     if model_type == 'torch':
         # Load the trained PyTorch model
         net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
-        net.load_state_dict(torch.load("trained_models/torch_models_3d/new_test.pth"))
+        net.load_state_dict(torch.load("trained_models/torch_models_3d/test_1.pth"))
         net.eval()
     elif model_type == 'jax':
         # Load the trained JAX model
@@ -136,33 +70,165 @@ def main():
 
     else:
         raise ValueError(f"Invalid model type: {model_type}. Supported types are 'torch' and 'jax'.")
+    
+    return net
 
-    # Define the region of interest
-    x_range = (-4, 4)
-    y_range = (-4, 4)
-    z_range = (-1, 4)
+def evaluate_csdf_3d(net, configurations, cable_lengths, points, link_radius, link_length, resolution=None, model_type='jax'):
+    num_links = len(configurations)
+    num_points = points.shape[0]
 
-    resolution = 50
+    # Compute the transformations using forward kinematics
+    transformations = forward_kinematics(cable_lengths, link_radius, link_length)
+    # Exclude the end-effector transformation
+    transformations = transformations[:-1]
+
+    # Initialize the minimum distance array
+    min_distances = jnp.full(num_points, jnp.inf)
+
+
+    for i in range(num_links):
+        # Transform the points to the current link's local frame
+        points_link = jnp.dot(jnp.linalg.inv(transformations[i]), jnp.hstack((points, jnp.ones((num_points, 1)))).T).T[:, :3]
+
+
+        # Prepare the input tensor for the current link
+        inputs_link = jnp.hstack((jnp.repeat(configurations[i].reshape(1, -1), num_points, axis=0), points_link))
+        
+        # Evaluate the signed distance values for the current link
+        if model_type == 'jax':
+            outputs_link = net.apply(net.params, inputs_link)
+        else:
+            raise ValueError(f"Invalid model type: {model_type}. Supported type is 'jax'.")
+
+        # Update the minimum distance array
+        min_distances = jnp.minimum(min_distances, jnp.min(outputs_link, axis=1))
+
+    if resolution is None:
+        return min_distances
+    else:
+        distances = min_distances.reshape(resolution, resolution, resolution)
+        return distances
+
+def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_range, y_range, z_range, save_path=None):
+    # Create a figure and 3D axis
+    fig = plt.figure(figsize=(8, 8), dpi=150)
+    ax = fig.add_subplot(111, projection='3d')
+
+    base_center = np.zeros(3)
+    base_normal = np.array([0, 0, 1])
+
+    plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
+
+    # Plot surface points as green dots
+    # surface_points_list = compute_surface_points([cable_lengths[0]], link_radius, link_length, num_points_per_circle=20)
+    # surface_points = np.concatenate(surface_points_list, axis=0)
+    # ax.scatter(surface_points[:, 0], surface_points[:, 1], surface_points[:, 2], c='green', marker='o', s=10, label='Surface Points')
+
+
+    # Generate a grid of points in the workspace
+    x = np.linspace(x_range[0], x_range[1], distances.shape[0])
+    y = np.linspace(y_range[0], y_range[1], distances.shape[1])
+    z = np.linspace(z_range[0], z_range[1], distances.shape[2])
+    xx, yy, zz = np.meshgrid(x, y, z, indexing='ij')
+
+    # Set the distance threshold for emphasizing color changes
+    threshold = 0.2
+
+    # Clip the distances to the threshold value
+    clipped_distances = np.clip(distances, -threshold, threshold)
+
+    # Create a colormap that emphasizes color changes near the threshold
+    cmap = plt.get_cmap('coolwarm')
+    normalized_distances = (clipped_distances + threshold) / (2 * threshold)
+
+    # Plot the heatmap of the signed distance values
+    sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.2, s=4)
+
+
+    # Highlight points with distance < 0.3
+    condition = distances < threshold
+    sc_highlight = ax.scatter(xx[condition], yy[condition], zz[condition], c='blue', marker='o', s=20, alpha=0.3, label='Distance < 0.3')
+
+    # Create a colorbar with adjusted limits
+    cbar = fig.colorbar(sc, ax=ax, label='Distance')
+    #cbar.set_ticks([-1, 0, 1])
+    #cbar.set_ticklabels([f'<= -{threshold}', '0', f'>= {threshold}'])
+
+
+    # Set the limits and labels of the plot
+    ax.set_xlim(x_range)
+    ax.set_ylim(y_range)
+    ax.set_zlim(z_range)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    #ax.set_title('C-SDF Heatmap')
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300)  # Save the figure in high resolution
+
+    plt.show()
+
+
+def surface_point_csdf_check(configuration, cable_lengths, link_radius, link_length, net, model_type):
+
+    surface_points_list = compute_surface_points([cable_lengths[0]], link_radius, link_length, num_points_per_circle=30)
+    surface_points = np.concatenate(surface_points_list, axis=0)
+
+    # Evaluate the distances for the surface points
+    surface_distances = evaluate_csdf_3d(net, configuration, cable_lengths, surface_points, link_radius, link_length, model_type=model_type)
+
+    # Compute the mean and standard deviation of the surface distances
+    mean_surface_distance = np.mean(surface_distances)
+    std_surface_distance = np.std(surface_distances)
+
+    print(f"Mean surface distance: {mean_surface_distance:.4f}")
+    print(f"Standard deviation of surface distances: {std_surface_distance:.4f}")
+
+    # Check if the surface distances are close to 0
+    epsilon = 1e-2  # Adjust this threshold as needed
+    if np.abs(mean_surface_distance) < epsilon and std_surface_distance < epsilon:
+        print("Surface distances are close to 0. Training is accurate.")
+    else:
+        print("Surface distances are not close to 0. Training may need improvement.")
+
+
+
+
+def main():
+    # Define the model type to evaluate ('torch' or 'jax')
+    model_type = 'jax'
+
+    net = load_learned_csdf(model_type)
+
+    link_radius = LINK_RADIUS
+    link_length = LINK_LENGTH
 
     # Define the cable lengths for each link
-    link_lengths = jnp.array([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+    cable_lengths = jnp.array([[2.0, 1.8], [1.8, 1.9], [1.9, 2.1], [2.2, 2.0]])
+
+    #cable_lengths = jnp.array([[2.2, 2.2], [1.8, 2.0]])
 
     # Calculate theta and phi for each link
     thetas = []
     phis = []
-    link_radius = 0.15
-    link_length = 1.0
-    for length in link_lengths:
+    for length in cable_lengths:
         edge_lengths = compute_3rd_edge_length(length, link_length)
         theta, phi = calculate_link_parameters(edge_lengths, link_radius)
         thetas.append(theta)
         phis.append(phi)
 
     # Flatten the configurations
-    configuration = np.stack((thetas, phis), axis=1).flatten()
+    configuration = np.stack((thetas, phis), axis=1)
+
+
+    surface_point_csdf_check(configuration, cable_lengths, link_radius, link_length, net, model_type)
+
 
     points_of_interest = np.array([
-        [0, 0, 0],
+        [0, 1, 0],
         [0, 0, -1],
         [2, 0, 0],
         [2, 2, 0], 
@@ -170,7 +236,7 @@ def main():
     ])
 
     # Evaluate the distances for the points of interest
-    distances = evaluate_csdf_3d(net, configuration, points_of_interest, model_type=model_type)
+    distances = evaluate_csdf_3d(net, configuration, cable_lengths, points_of_interest, link_radius, link_length, model_type=model_type)
 
     # Print the distances for each point of interest
     for point, distance in zip(points_of_interest, distances):
@@ -181,19 +247,24 @@ def main():
     plot the heatmap for visualization 
     '''
 
+    # Define the region of interest
+    x_range = (-4, 4)
+    y_range = (-4, 4)
+    z_range = (-2, 6)
+
+    resolution = 40
+
     # Generate a grid of points in the workspace
     x = np.linspace(x_range[0], x_range[1], resolution)
     y = np.linspace(y_range[0], y_range[1], resolution)
     z = np.linspace(z_range[0], z_range[1], resolution)
-    xx, yy, zz = np.meshgrid(x, y, z)
+    xx, yy, zz = np.meshgrid(x, y, z, indexing = 'ij')
     points = np.stack((xx.flatten(), yy.flatten(), zz.flatten()), axis=1)
 
-    distances = evaluate_csdf_3d(net, configuration, points, model_type=model_type, resolution=50)
-
-    
+    distances = evaluate_csdf_3d(net, configuration, cable_lengths, points, link_radius, link_length, model_type=model_type, resolution=resolution)
 
     # Plot the C-SDF isosurface
-    plot_csdf_heatmap_3d(link_lengths, distances, x_range, y_range, z_range, save_path='csdf_isosurface_3d.png')
+    plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_range, y_range, z_range, save_path='csdf_isosurface_3d.png')
 
 
 if __name__ == "__main__":

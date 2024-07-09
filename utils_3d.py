@@ -155,12 +155,12 @@ def state_to_config(edge_lengths, link_radius, link_length):
 
 
 @jit
-def forward_kinematics(states, link_radius, link_length):
-    base_center = jnp.zeros(3)
-    base_normal = jnp.array([0, 0, 1])
+def forward_kinematics(states, link_radius, link_length, base_center = jnp.zeros(3), base_normal = jnp.array([0, 0, 1])):
+
     transformations = [jnp.eye(4)]
 
-    for i in range(len(states)-1):
+    for i in range(len(states)):
+
         # Compute the end circle and normal for the current link
         end_center, end_normal, _ = compute_end_circle(states[:i+1], link_radius, link_length, base_center, base_normal)
 
@@ -181,6 +181,7 @@ def transform_point_to_link_frame(point, transformations):
     link_frames = []
 
     for transformation in transformations:
+        
         link_frame_point = jnp.dot(jnp.linalg.inv(transformation), homogeneous_point)
         link_frames.append(link_frame_point[:3])
 
@@ -356,7 +357,7 @@ def generate_random_env_3d(num_obstacles, xlim, ylim, zlim, goal_xlim, goal_ylim
             if all(np.linalg.norm(pos - np.array(obs_pos)) >= min_distance_obs for obs_pos in obstacle_positions):
                 obstacle_positions.append(pos)
                 break
-        vel = np.array([0.0, 0.0, 0.0])
+        vel = np.random.rand(3)
 
         obstacle_velocities.append(vel)
 
@@ -372,17 +373,23 @@ def generate_random_env_3d(num_obstacles, xlim, ylim, zlim, goal_xlim, goal_ylim
 
 
     # Hard-code obstacle positions and velocities
-    obstacle_positions = [
-        np.array([1., 1., 2.]),  # First obstacle
-        np.array([1., 1., 4.])   # Second obstacle
-    ]
+    # obstacle_positions = [
+    #     np.array([1., 1., 2.]),  # First obstacle
+    #     np.array([1., 1., 4.]),   # Second obstacle
+    #     np.array([2., 2., 3.]),  # First obstacle
+    #     np.array([3., 1., 4.]),   # Second obstacle
+
+    # ]
 
 
-    obstacle_positions = np.array(obstacle_positions)
+    # obstacle_positions = np.array(obstacle_positions)
 
-    goal_point = np.array([1., 1., 3.])
+    # goal_point = np.array([4., 4., 3.])
 
     return obstacle_positions, obstacle_velocities, goal_point
+
+
+
 
 
 def main():

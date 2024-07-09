@@ -1,10 +1,9 @@
 # training Configuration parameters
-NUM_LINKS = 4
-INPUT_SIZE = NUM_LINKS * 2  + 3  # (theta, phi) * 2 + 3D point
-HIDDEN_SIZE = 512
-OUTPUT_SIZE = 1    # NUM_LINKS
-NUM_LAYERS = 5
+INPUT_SIZE = 2 + 3  # (theta, phi) + 3D point
+HIDDEN_SIZE = 256
+OUTPUT_SIZE = 1    # Distance Value
+NUM_LAYERS = 4
 
-NUM_EPOCHS = 8
-LEARNING_RATE = 0.0013
+NUM_EPOCHS = 100
+LEARNING_RATE = 0.0015
 BATCH_SIZE = 256
