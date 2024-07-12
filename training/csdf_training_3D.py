@@ -24,8 +24,6 @@ if no GPU
 JAX training without eikonal constraint
 '''
 
-
-
 def train_jax_3d(net, dataset, num_epochs, learning_rate, batch_size, loss_threshold=1e-4):
     def loss_fn(params, batch):
         inputs, distances = batch
@@ -147,8 +145,6 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
 
             # Eikonal loss (defined for each link)
             eikonal_loss = 0.0
-
-
   
             workspace_pt_grad = torch.autograd.grad(outputs, inputs, grad_outputs=torch.ones_like(outputs),
                                                     create_graph=True, allow_unused=True)[0][:, -3:]

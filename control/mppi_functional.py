@@ -1,12 +1,8 @@
 import jax
-import time
-import numpy as np
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 from jax.random import multivariate_normal
 from jax import jit, lax
 
-from main_csdf import evaluate_model, compute_cbf_value_and_grad
 from utils import get_last_link_grasp_points
 
 from utils_3d import *
@@ -43,8 +39,6 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
     control_cov = 0.1 * jnp.eye(robot_m) #0.1 * jnp.eye(robot_m)
     control_cov_inv = jnp.linalg.inv(control_cov)
     control_bound = control_bound
-    control_bound_lb = -jnp.array([1,1]).reshape(-1,1)
-    control_bound_ub =  jnp.array([1,1]).reshape(-1,1)
     if u_guess != None:
         U = u_guess
     else:
@@ -78,7 +72,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
             U = U + perturbation[i] * weights[i] / normalization_factor
             return U
         return lax.fori_loop( 0, samples, body, (U) )
-
+    
     @jit
     def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation):
         # Initialize robot_state
@@ -92,9 +86,10 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
         max_length = 1.2 * nominal_length
         link_radius = LINK_RADIUS
 
-        # 0.2 is a safety margin
-        obst_radius = 0.6 + 0.2
+        # 0.13 is a safety margin
+        safety_margin = 0.1                          #for the sphere env: 0.6 + 0.2
 
+        
         # loop over horizon
         cost_sample = 0
         def body(i, inputs):
@@ -103,7 +98,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
             # get robot state
             robot_state = robot_states[:,[i]]
 
-            robot_state = robot_state.reshape(4,2)
+            robot_state = robot_state.reshape(NUM_OF_LINKS, 2)
 
 
             end_center, end_normal, _ = compute_end_circle(robot_state, link_radius, nominal_length)
@@ -118,16 +113,12 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
 
             robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
 
-            cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
+            csdf_distances = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
 
-            # print('obstacle:', obstaclesX)
+            cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(csdf_distances)- safety_margin, 0.01]))
 
-            # print('safety_value:', cbf_h_val)
 
-            cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(cbf_h_val)- obst_radius, 0.01]))
             # Compute the state constraint violation cost
-            
-            # Compute the third edge length for each link
             length_1 = robot_state.squeeze()[:, 0]
             length_2 = robot_state.squeeze()[:, 1]
             length_3 = 3 * nominal_length - length_1 - length_2
@@ -137,12 +128,11 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
             state_constraint_violation_2 = jnp.maximum(min_length - length_2, 0) + jnp.maximum(length_2 - max_length, 0)
             state_constraint_violation_3 = jnp.maximum(min_length - length_3, 0) + jnp.maximum(length_3 - max_length, 0)
 
+
             # Sum up the state constraint violations for all edge lengths and all links
             state_constraint_violation = jnp.sum(state_constraint_violation_1 + state_constraint_violation_2 + state_constraint_violation_3)
 
             cost_sample = cost_sample + cost_state_coeff * state_constraint_violation
-
-            # jax.debug.print("🤯 i {index} length_3 {x} 🤯, state_constraint {state}", index=i, x=length_3, state=state_constraint_violation)
 
 
             # Update robot states
@@ -151,15 +141,14 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
         
         cost_sample, robot_states, _ = lax.fori_loop(0, horizon-1, body, (cost_sample, robot_states, obstaclesX))
 
-        # jax.debug.print("🤯 cost_sample {x} 🤯", x=cost_sample)
 
         robot_state = robot_states[:,[horizon-1]]
 
-        robot_state = robot_state.reshape(4,2)
+        robot_state = robot_state.reshape(NUM_OF_LINKS, 2)
 
         # Compute the end center and normal for the final state
 
-        end_center, end_normal, _ = compute_end_circle(robot_state, link_radius, nominal_length)
+        end_center, _, _ = compute_end_circle(robot_state, link_radius, nominal_length)
 
         # Compute the distance between the end center and the goal for the final state
         end_center_distance = jnp.linalg.norm(goal - end_center)
@@ -171,24 +160,103 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
         robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
 
 
-        cbf_h_val, _, _ = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
-        #cbf_h_val, _, _ = compute_cbf_value_and_grad(jax_params, robot_state.squeeze(), obstaclesX, jnp.zeros_like(obstaclesX))
+        csdf_distances = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
         
-        cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(cbf_h_val)-obst_radius, 0.01]))
-
-        # a cost for grasping, make sure the last link has configuration = 1
-        # last_link_length = robot_state.squeeze()[-1]
-        # last_link_length_cost = 10 * jnp.abs(last_link_length - 1.0)
-        # cost_sample = cost_sample + last_link_length_cost
-
+        cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(csdf_distances) - safety_margin, 0.01]))
 
         return cost_sample, robot_states
+
+    # @jit
+    # def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation):
+    #     # Initialize robot_state
+    #     robot_states = jnp.zeros((robot_n, horizon))
+    #     robot_states = robot_states.at[:,0].set(robot_states_init)
+
+    #     # Define the state constraints
+    #     nominal_length = LINK_LENGTH
+
+    #     min_length = 0.8 * nominal_length
+    #     max_length = 1.2 * nominal_length
+    #     link_radius = LINK_RADIUS
+
+    #     # 0.2 is a safety margin
+    #     safety_margin = 0.12                          #for the sphere env: 0.6 + 0.2
+
+        
+    #     # loop over horizon
+    #     cost_sample = 0
+    #     def body(i, inputs):
+    #         cost_sample, robot_states, obstaclesX = inputs
+
+    #         # get robot state
+    #         robot_state = robot_states[:, i]
+    #         robot_state = robot_state.reshape(-1, NUM_OF_LINKS, 2)
+
+    #         # Vectorize compute_end_circle
+    #         compute_end_circle_batch = jax.vmap(compute_end_circle, in_axes=(0, None, None))
+    #         end_centers, end_normals, _ = compute_end_circle_batch(robot_state, link_radius, nominal_length)
+
+    #         # Compute the distance between the end centers and the goal
+    #         end_center_distances = jnp.linalg.norm(goal - end_centers, axis=-1)
+
+    #         cost_sample = cost_sample + cost_goal_coeff * end_center_distances
+    #         cost_sample = cost_sample + cost_perturbation_coeff * jnp.sum((perturbed_control[:, i] - perturbation[:, i]) @ control_cov_inv * (perturbed_control[:, i] - perturbation[:, i]), axis=-1)
+
+    #         # Vectorize state_to_config
+    #         state_to_config_batch = jax.vmap(state_to_config, in_axes=(0, None, None))
+    #         robot_configs = state_to_config_batch(robot_state.reshape(-1, NUM_OF_LINKS * 2), link_radius, nominal_length)
+
+    #         # Vectorize evaluate_model
+    #         evaluate_model_batch = jax.vmap(evaluate_model, in_axes=(None, 0, 0, None, None, None))
+    #         csdf_distances = evaluate_model_batch(jax_params, robot_configs, robot_state.reshape(-1, NUM_OF_LINKS * 2), link_radius, nominal_length, obstaclesX)
+
+    #         cost_sample = cost_sample + cost_safety_coeff / jnp.maximum(jnp.min(csdf_distances, axis=-1) - obst_radius, 0.01)
+
+    #         # Compute the state constraint violation cost
+    #         edge_lengths = jnp.concatenate((robot_state, 3 * nominal_length - jnp.sum(robot_state, axis=-1, keepdims=True)), axis=-1)
+    #         state_constraint_violations = jnp.maximum(min_length - edge_lengths, 0) + jnp.maximum(edge_lengths - max_length, 0)
+    #         state_constraint_violation = jnp.sum(state_constraint_violations)
+
+    #         cost_sample = cost_sample + cost_state_coeff * state_constraint_violation
+
+    #         # Update robot states
+    #         robot_states = robot_states.at[:, i + 1].set(robot_dynamics_step(robot_states[:, i], perturbed_control[:, i]))
+
+    #         return cost_sample, robot_states
+        
+    #     cost_sample, robot_states = lax.fori_loop(0, horizon-1, body, (cost_sample, robot_states, obstaclesX))
+
+
+    #     robot_state = robot_states[:,[horizon-1]]
+
+    #     robot_state = robot_state.reshape(NUM_OF_LINKS, 2)
+
+    #     # Compute the end center and normal for the final state
+
+    #     end_center, _, _ = compute_end_circle(robot_state, link_radius, nominal_length)
+
+    #     # Compute the distance between the end center and the goal for the final state
+    #     end_center_distance = jnp.linalg.norm(goal - end_center)
+
+    #     cost_sample = cost_sample + cost_goal_coeff_final * end_center_distance
+
+    #     cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
+        
+    #     robot_config = state_to_config(robot_state.squeeze(), link_radius, nominal_length)
+
+
+    #     csdf_distances = evaluate_model(jax_params, robot_config, robot_state.squeeze(), link_radius, nominal_length, obstaclesX)
+        
+    #     cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(csdf_distances) - safety_margin, 0.01]))
+
+    #     return cost_sample, robot_states
+
+
 
     @jit
     def rollout_states_foresee(robot_init_state, perturbed_control, goal, obstaclesX, perturbation):
 
-        ##### Initialize
-               
+        ##### Initialize               
         # Robot
         robot_states = jnp.zeros( (samples, robot_n, horizon) )
         robot_states = robot_states.at[:,:,0].set( jnp.tile( robot_init_state.T, (samples,1) ) )
@@ -222,9 +290,8 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, horizon=10, samples 
     @jit
     def compute_perturbed_control(subkey, control_mu, control_cov, control_bound, U):
         perturbation = multivariate_normal( subkey, control_mu, control_cov, shape=( samples, horizon ) ) # K x T x nu 
-
-        
-        perturbation = jnp.clip( perturbation, -1.0, 1.0 ) #0.3
+  
+        perturbation = jnp.clip( perturbation, -0.5, 0.5) #0.3
         perturbed_control = U + perturbation
 
         perturbed_control = jnp.clip( perturbed_control, -control_bound, control_bound )

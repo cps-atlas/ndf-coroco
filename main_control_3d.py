@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 
 from flax.core import freeze
+import time
 
 
 
@@ -132,7 +133,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
 
         estimated_obstacle_distances.append(sdf_val)
-        print('estimated_obst_distances:', sdf_val)
+        # print('estimated_obst_distances:', sdf_val)
 
 
         if mode == 'random':
@@ -145,7 +146,11 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
 
+            start_time = time.time()
+
             robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions)
+
+            # print('time needed for MPPI:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
             selected_end_effectors = []
@@ -205,12 +210,17 @@ if __name__ == '__main__':
 
     model_type = 'jax'
 
-    net = load_learned_csdf(model_type)
+    #trained_model = "trained_models/torch_models_3d/eikonal_train.pth"
+    #trained_model = "trained_models/torch_models_3d/test_1.pth"
+
+    trained_model = "trained_models/torch_models_3d/eikonal_train_small.pth"
+
+    net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
     jax_params = net.params
 
     # create env for quantitative statistics
-    num_environments = 5
+    num_environments = 1
     num_trials = 1
     xlim = [-4, 4]
     ylim = [-4, 4]

@@ -22,12 +22,12 @@ if no GPU
 '''
 # jax.config.update('jax_platform_name', 'cpu')
 
-def load_learned_csdf(model_type):
+def load_learned_csdf(model_type, trained_model_path = "trained_models/torch_models_3d/eikonal_train.pth"):
 
     if model_type == 'torch':
         # Load the trained PyTorch model
         net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
-        net.load_state_dict(torch.load("trained_models/torch_models_3d/test_1.pth"))
+        net.load_state_dict(torch.load(trained_model_path))
         net.eval()
     elif model_type == 'jax':
         # Load the trained JAX model
@@ -38,7 +38,7 @@ def load_learned_csdf(model_type):
         pytorch_net = CSDFNet(INPUT_SIZE, HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS)
 
         # Load state_dict from file
-        state_dict = torch.load("trained_models/torch_models_3d/test_1.pth")
+        state_dict = torch.load(trained_model_path)
         pytorch_net.load_state_dict(state_dict)
 
         # Define your JAX model
@@ -142,7 +142,8 @@ def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_r
     normalized_distances = (clipped_distances + threshold) / (2 * threshold)
 
     # Plot the heatmap of the signed distance values
-    sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.2, s=4)
+    # sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.2, s=4)
+    # cbar = fig.colorbar(sc, ax=ax, label='Distance')
 
 
     # Highlight points with distance < 0.3
@@ -150,7 +151,6 @@ def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_r
     sc_highlight = ax.scatter(xx[condition], yy[condition], zz[condition], c='blue', marker='o', s=20, alpha=0.3, label='Distance < 0.3')
 
     # Create a colorbar with adjusted limits
-    cbar = fig.colorbar(sc, ax=ax, label='Distance')
     #cbar.set_ticks([-1, 0, 1])
     #cbar.set_ticklabels([f'<= -{threshold}', '0', f'>= {threshold}'])
 
@@ -201,7 +201,9 @@ def main():
     # Define the model type to evaluate ('torch' or 'jax')
     model_type = 'jax'
 
-    net = load_learned_csdf(model_type)
+    trained_model = "trained_models/torch_models_3d/eikonal_train_small.pth"
+
+    net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
     link_radius = LINK_RADIUS
     link_length = LINK_LENGTH
@@ -209,7 +211,7 @@ def main():
     # Define the cable lengths for each link
     cable_lengths = jnp.array([[2.0, 1.8], [1.8, 1.9], [1.9, 2.1], [2.2, 2.0]])
 
-    #cable_lengths = jnp.array([[2.2, 2.2], [1.8, 2.0]])
+    #cable_lengths = jnp.array([[2.2, 2.0], [2.1, 2.0]])
 
     # Calculate theta and phi for each link
     thetas = []

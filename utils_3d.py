@@ -1,33 +1,34 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from network.csdf_net import CSDFNet_JAX
+from training.config_3D import *
+from robot_config import *
+
 import jax
 
 '''
 if no GPU
 '''
-jax.config.update('jax_platform_name', 'cpu')
+# jax.config.update('jax_platform_name', 'cpu')
 
 import jax.numpy as jnp
-from jax import jit, vmap
+from jax import jit, vmap, lax
 
 @jit
 def calculate_link_parameters(edge_lengths, link_radius):
-    q1, q2, q3 = edge_lengths
+    q1 = edge_lengths[..., 0]
+    q2 = edge_lengths[..., 1]
+    q3 = edge_lengths[..., 2]
     r = link_radius
-
+    
     # Calculate theta (bending angle)
     theta_expr = q1**2 + q2**2 + q3**2 - q1*q2 - q2*q3 - q1*q3
-
-    # jax.debug.print("🤯 {theta_exp}", theta_exp = theta_expr)
-    # print(theta_expr)
-
     theta_expr = jnp.maximum(theta_expr, 0.0)  # Ensure non-negative value inside sqrt
     theta = 2 * jnp.sqrt(theta_expr) / (3 * r)
+    
     # Calculate phi (bending direction angle)
     phi = jnp.arctan2(jnp.sqrt(3) * (q2 - q3), q2 + q3 - 2*q1)
-
-    # jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
 
     '''
     rrt* paper definition:
@@ -36,8 +37,9 @@ def calculate_link_parameters(edge_lengths, link_radius):
 
     # phi = jnp.arctan2(jnp.sqrt(3) * (q2), 2*q1 - q2)
     # jax.debug.print("🤯 theta: {theta}, phi: {phi}", theta = theta, phi = phi)
-
+    
     return theta, phi
+
 
 @jit
 def compute_edge_points(edge_lengths, link_radius, link_length):
@@ -78,6 +80,7 @@ def compute_edge_points(edge_lengths, link_radius, link_length):
 def compute_end_circle(states, link_radius, link_length, base_center=jnp.zeros(3), base_normal=jnp.array([0, 0, 1])):
     end_center = base_center
     end_normal = base_normal
+    
     
 
     for state in states:
@@ -129,30 +132,26 @@ def calculate_rotation_matrix(v1, v2):
     return jnp.where(s < 1e-6, jnp.eye(3), jnp.eye(3) + vx + jnp.dot(vx, vx) * (1 - c) / (s ** 2))
 
 
+
 @jit
 def compute_3rd_edge_length(state, link_length):
-
-    q1, q2 = state
+    q1 = state[..., 0]
+    q2 = state[..., 1]
     q3 = 3 * link_length - q1 - q2
-    edge_lengths = [q1, q2, q3]
-
+    edge_lengths = jnp.stack([q1, q2, q3], axis=-1)
     return edge_lengths
 
 
 @jit
 def state_to_config(edge_lengths, link_radius, link_length):
-    thetas = []
-    phis = []
-    for length in edge_lengths:
-        edge_lengths_3 = compute_3rd_edge_length(length, link_length)
-        theta, phi = calculate_link_parameters(edge_lengths_3, link_radius)
-        thetas.append(theta)
-        phis.append(phi)
-
-    #jax.debug.print("🤯 thetas: {theta}, phis: {phi}", theta = thetas, phi = phis)
-    return jnp.stack((jnp.array(thetas), jnp.array(phis)), axis=1).flatten()
+    edge_lengths_3 = compute_3rd_edge_length(edge_lengths, link_length)
+    thetas, phis = calculate_link_parameters(edge_lengths_3, link_radius)
+    return jnp.stack((thetas, phis), axis=-1)
 
 
+'''
+for following functions, NUM_OF_LINKS < 10 is relatively small, explicit for loops may be the most efficient implementation
+'''
 
 @jit
 def forward_kinematics(states, link_radius, link_length, base_center = jnp.zeros(3), base_normal = jnp.array([0, 0, 1])):
@@ -180,12 +179,57 @@ def transform_point_to_link_frame(point, transformations):
     homogeneous_point = jnp.append(point, 1)
     link_frames = []
 
-    for transformation in transformations:
-        
+    for transformation in transformations:   
         link_frame_point = jnp.dot(jnp.linalg.inv(transformation), homogeneous_point)
         link_frames.append(link_frame_point[:3])
 
     return jnp.array(link_frames)
+
+
+
+'''
+following function is the inference of learned C-SDF
+'''
+
+@jit
+def evaluate_model(jax_params, rbt_configs, cable_lengths, link_radius, link_length, obstacle_points):
+    # Predict signed distances
+    @jit
+    def apply_model(params, inputs):
+        return CSDFNet_JAX(HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS).apply(params, inputs)
+
+    # Ensure obstacle_points is a 2D array
+    obstacle_points = jnp.array(obstacle_points, dtype=jnp.float32)
+    if obstacle_points.ndim == 1:
+        obstacle_points = obstacle_points.reshape(1, -1)
+
+    rbt_configs = rbt_configs.reshape(NUM_OF_LINKS, 2)
+    num_links = len(rbt_configs)
+    num_points = obstacle_points.shape[0]
+
+    # Compute the transformations using forward kinematics
+    transformations = forward_kinematics(cable_lengths, link_radius, link_length)
+    # Exclude the end-effector transformation
+    transformations = transformations[:-1]
+
+    # Convert transformations to an ndarray
+    transformations = jnp.array(transformations)
+
+    # Transform the points to all link frames simultaneously
+    points_link = jax.vmap(lambda T: jnp.dot(jnp.linalg.inv(T), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3])(transformations)
+
+    # Prepare the input tensor for all links
+    inputs_link = jnp.concatenate((jnp.repeat(rbt_configs, num_points, axis=0), jnp.reshape(points_link, (-1, 3))), axis=1)
+
+    # Forward pass for all links
+    outputs_link = apply_model(jax_params, inputs_link)
+    distances_link = outputs_link[:, 0].reshape(num_links, num_points)
+
+    # Find the minimum distances and closest link indices
+    min_distances = jnp.min(distances_link, axis=0)
+
+
+    return min_distances
 
 '''
 following are non JAX functions, mainly for plotting and dataset preparation
@@ -384,7 +428,7 @@ def generate_random_env_3d(num_obstacles, xlim, ylim, zlim, goal_xlim, goal_ylim
 
     # obstacle_positions = np.array(obstacle_positions)
 
-    # goal_point = np.array([4., 4., 3.])
+    goal_point = np.array([4., 0., 4.])
 
     return obstacle_positions, obstacle_velocities, goal_point
 
