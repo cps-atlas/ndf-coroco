@@ -188,7 +188,7 @@ def transform_point_to_link_frame(point, transformations):
 
 
 '''
-following function is the inference of learned C-SDF
+following function is the inference of learned C-SDF distance
 '''
 
 @jit

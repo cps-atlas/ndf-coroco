@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from network.csdf_net import CSDFNet, CSDFNet_JAX
 from training.config_3D import *
 
-from skimage import measure
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from utils_3d import *
