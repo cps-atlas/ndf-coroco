@@ -3,8 +3,6 @@ import jax.numpy as jnp
 from jax.random import multivariate_normal
 from jax import jit, lax
 
-from utils import get_last_link_grasp_points
-
 from utils_3d import *
 from robot_config import *
 
