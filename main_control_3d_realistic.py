@@ -112,8 +112,11 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
         print('distance_to_goal:', goal_distance)
 
+        # adaptive prediction horizon 
         if(goal_distance < 0.5):
             prediction_horizon = 5
+            U = U[:prediction_horizon, :]   
+            
             mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
         # convert robot state (cable lengths) to configurations

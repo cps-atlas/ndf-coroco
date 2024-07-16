@@ -7,7 +7,7 @@ from utils_3d import *
 from robot_config import *
 
 # if no gpu available
-jax.config.update('jax_platform_name', 'cpu')
+# jax.config.update('jax_platform_name', 'cpu')
 
 
     
