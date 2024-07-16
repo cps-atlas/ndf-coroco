@@ -10,7 +10,7 @@ import jax
 '''
 if no GPU
 '''
-# jax.config.update('jax_platform_name', 'cpu')
+jax.config.update('jax_platform_name', 'cpu')
 
 import jax.numpy as jnp
 from jax import jit, vmap, lax
@@ -188,7 +188,7 @@ def transform_point_to_link_frame(point, transformations):
 
 
 '''
-following function is the inference of learned C-SDF distance
+following function is the inference of learned C-SDF
 '''
 
 @jit

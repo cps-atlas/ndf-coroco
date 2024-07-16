@@ -45,9 +45,9 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     # Set up MPPI controller
     # prediction_horizon need to be adaptive, based on the distance to goal. 
     # for 6-link: horizon = 4; 4,5-link: horizon = 20
-    prediction_horizon = 15
+    prediction_horizon = 18
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 600
+    num_samples = 800
     costs_lambda = 0.03
     cost_goal_coeff = 15.0
     cost_safety_coeff = 1.1
@@ -61,7 +61,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     use_GPU = True
 
 
-    mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+    mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
     # Define the initial control signal
     if mode == 'random':
@@ -112,8 +112,9 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
         print('distance_to_goal:', goal_distance)
 
-        # if(goal_distance < 0.5):
-        #     horizon = 10
+        if(goal_distance < 0.5):
+            prediction_horizon = 5
+            mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
         # convert robot state (cable lengths) to configurations
         robot_config = state_to_config(robot.state, robot.link_radius, robot.link_length)
