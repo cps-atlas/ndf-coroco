@@ -80,7 +80,7 @@ def main_torch(train_eikonal=False):
 
         net = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.02)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_small.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_16.pth")
     else:
         print('training without eikonal start!')
         net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4)

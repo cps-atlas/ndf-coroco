@@ -77,7 +77,7 @@ def evaluate_csdf_3d(net, configurations, cable_lengths, points, link_radius, li
     num_points = points.shape[0]
 
     # Compute the transformations using forward kinematics
-    transformations = forward_kinematics(cable_lengths, link_radius, link_length)
+    transformations = forward_kinematics(cable_lengths)
     # Exclude the end-effector transformation
     transformations = transformations[:-1]
 
@@ -141,8 +141,8 @@ def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_r
     normalized_distances = (clipped_distances + threshold) / (2 * threshold)
 
     # Plot the heatmap of the signed distance values
-    # sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.2, s=4)
-    # cbar = fig.colorbar(sc, ax=ax, label='Distance')
+    sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.2, s=4)
+    cbar = fig.colorbar(sc, ax=ax, label='Distance')
 
 
     # Highlight points with distance < 0.3
@@ -200,7 +200,7 @@ def main():
     # Define the model type to evaluate ('torch' or 'jax')
     model_type = 'jax'
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_small.pth"
+    trained_model = "trained_models/torch_models_3d/eikonal_train_32.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
@@ -208,7 +208,7 @@ def main():
     link_length = LINK_LENGTH
 
     # Define the cable lengths for each link
-    cable_lengths = jnp.array([[2.0, 1.8], [1.8, 1.9], [1.9, 2.1], [2.2, 2.0]])
+    cable_lengths = jnp.array([[2.0, 2.0], [1.8, 1.9], [1.9, 2.1], [2.2, 2.0]])
 
     #cable_lengths = jnp.array([[2.2, 2.0], [2.1, 2.0]])
 
@@ -216,8 +216,8 @@ def main():
     thetas = []
     phis = []
     for length in cable_lengths:
-        edge_lengths = compute_3rd_edge_length(length, link_length)
-        theta, phi = calculate_link_parameters(edge_lengths, link_radius)
+        edge_lengths = compute_3rd_edge_length(length)
+        theta, phi = calculate_link_parameters(edge_lengths)
         thetas.append(theta)
         phis.append(phi)
 

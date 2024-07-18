@@ -43,9 +43,12 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
 
     # Set up MPPI controller
-    # prediction_horizon need to be adaptive, based on the distance to goal. 
-    # for 6-link: horizon = 4; 4,5-link: horizon = 20
-    prediction_horizon = 18
+    
+    # for 6-link: horizon = 4; 5-link: horizon = 20, 4-link: horizon = 12
+    # prediction_horizon >= 2
+
+
+    prediction_horizon = 12
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
     num_samples = 800
     costs_lambda = 0.03
@@ -69,13 +72,16 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     elif mode == 'mppi':
         control_signals = np.zeros(2 * robot.num_links)
 
-    num_steps = 300
-    goal_threshold = 0.3
+    num_steps = 200
+    goal_threshold = 0.2
 
     period = 10
 
     goal_distances = []
     estimated_obstacle_distances = []
+
+    switch_count = 0
+    switch_distance = 0.8
 
     for step in range(num_steps):
         # Create a new figure and 3D axis for each frame
@@ -102,7 +108,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         plt.tight_layout()
 
 
-        end_center, _, _ = compute_end_circle(robot.state, robot.link_radius, robot.link_length)
+        end_center, _, _ = compute_end_circle(robot.state)
 
         # Calculate the distance between the end center and the goal point
         goal_distance = np.linalg.norm(end_center - goal_point)
@@ -113,14 +119,14 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         print('distance_to_goal:', goal_distance)
 
         # adaptive prediction horizon 
-        if(goal_distance < 0.5):
+        if goal_distance < switch_distance and switch_count == 0:
+            switch_count = 1
             prediction_horizon = 5
             U = U[:prediction_horizon, :]   
-            
             mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
         # convert robot state (cable lengths) to configurations
-        robot_config = state_to_config(robot.state, robot.link_radius, robot.link_length)
+        robot_config = state_to_config(robot.state)
 
         #sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
 
@@ -138,11 +144,12 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
 
-            start_time = time.time()
 
             sphere_points = generate_sphere_points(sphere_positions, obst_radius=sphere_radius)
 
             all_obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
+
+            start_time = time.time()
 
             robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points)
 
@@ -154,7 +161,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
                 
                 robot_state = selected_robot_states[:,i].reshape(robot.num_links, 2)
 
-                end_center, _, _ = compute_end_circle(robot_state, robot.link_radius, robot.link_length)
+                end_center, _, _ = compute_end_circle(robot_state)
 
 
                 selected_end_effectors.append(end_center)
@@ -237,7 +244,7 @@ if __name__ == '__main__':
     #trained_model = "trained_models/torch_models_3d/eikonal_train.pth"
     #trained_model = "trained_models/torch_models_3d/test_1.pth"
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_small.pth"
+    trained_model = "trained_models/torch_models_3d/eikonal_train_32.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
@@ -251,13 +258,13 @@ if __name__ == '__main__':
     obstacle_positions = [
         np.array([2.5, 0, 4.8]),
         np.array([2.5, 0, 0]),
-        np.array([1, -4, 3]), 
+        #np.array([1, -4, 3]), 
         np.array([5.3, 0, 2])
     ]
     obstacle_sizes = [
         np.array([1, 5, 3.2]),
         np.array([1, 5, 2]),
-        np.array([3, 2, 4]),
+        #np.array([3, 2, 4]),
         np.array([2., 5, 1])
     ]
 
@@ -276,10 +283,10 @@ if __name__ == '__main__':
 
     sphere_radius = 0.5
 
-    num_points_per_face = 40
+    num_points_per_area = 4
 
     wall_positions, obstacle_shapes, obstacle_points = generate_realistic_env_3d(
-        corridor_pos, corridor_size, obstacle_positions, obstacle_sizes, num_points_per_face=num_points_per_face)
+        corridor_pos, corridor_size, obstacle_positions, obstacle_sizes, num_points_per_unit_area=num_points_per_area)
 
     dt = 0.05
     control_modes = ['mppi']

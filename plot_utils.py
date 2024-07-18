@@ -57,25 +57,34 @@ def plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path='
 
 #     return np.concatenate(sampled_points, axis=0)
 
-def sample_points_on_obstacle(obstacle, num_points_per_face):
-    sampled_points = []
-    for face in obstacle:
-        # Calculate the min and max coordinates of the face
-        min_coords = np.min(face, axis=0)
-        max_coords = np.max(face, axis=0)
-
-        # Generate random points within the face boundaries
-        points = np.random.rand(num_points_per_face, 3)
-        points[:, 0] = points[:, 0] * (max_coords[0] - min_coords[0]) + min_coords[0]
-        points[:, 1] = points[:, 1] * (max_coords[1] - min_coords[1]) + min_coords[1]
-        points[:, 2] = points[:, 2] * (max_coords[2] - min_coords[2]) + min_coords[2]
-
-        sampled_points.append(points)
-
-    return np.concatenate(sampled_points, axis=0)
+def sample_points_on_face(face, num_points_per_unit_area):
+    # Calculate the min and max coordinates of the face
+    min_coords = np.min(face, axis=0)
+    max_coords = np.max(face, axis=0)
 
 
-def generate_realistic_env_3d(corridor_pos, corridor_size, obstacle_positions, obstacle_sizes, num_points_per_face=30):
+    # Calculate the dimensions of the face
+    dimensions = max_coords - min_coords
+
+    # Identify non-zero dimensions to calculate area correctly
+    non_zero_dims = dimensions != 0
+
+    # Calculate the area of the face
+    area = np.prod(dimensions[non_zero_dims])
+
+    # Calculate the number of points to sample based on the face area
+    num_points_per_face = int(num_points_per_unit_area * area)
+
+    # Generate random points within the face boundaries
+    points = np.random.rand(num_points_per_face, 3)
+    points[:, 0] = points[:, 0] * dimensions[0] + min_coords[0]
+    points[:, 1] = points[:, 1] * dimensions[1] + min_coords[1]
+    points[:, 2] = points[:, 2] * dimensions[2] + min_coords[2]
+
+    return points
+
+
+def generate_realistic_env_3d(corridor_pos, corridor_size, obstacle_positions, obstacle_sizes, num_points_per_unit_area=3):
 
 
     # Generate corridor walls (unchanged from original)
@@ -111,7 +120,6 @@ def generate_realistic_env_3d(corridor_pos, corridor_size, obstacle_positions, o
     ]
     
 
-    # Generate obstacle shapes based on positions and sizes
     obstacle_shapes = []
     obstacle_points = []
     for pos, size in zip(obstacle_positions, obstacle_sizes):
@@ -162,13 +170,20 @@ def generate_realistic_env_3d(corridor_pos, corridor_size, obstacle_positions, o
         ]
         obstacle_shapes.append(obstacle)
 
-        sampled_points = sample_points_on_obstacle(obstacle, num_points_per_face=num_points_per_face)
+        # Sample points on each face of the obstacle
+        sampled_points = []
+        for face in obstacle:
+            face_points = sample_points_on_face(face, num_points_per_unit_area)
+            
+            sampled_points.append(face_points)
 
-        obstacle_points.append(sampled_points)
+        # Concatenate the sampled points for the current obstacle
+        obstacle_points.append(np.concatenate(sampled_points, axis=0))
 
+    # Concatenate all obstacle points into a single array
+    obstacle_points = np.concatenate(obstacle_points, axis=0)
 
-    return wall_positions, obstacle_shapes, np.array(obstacle_points).reshape(-1, 3)
-
+    return wall_positions, obstacle_shapes, obstacle_points
 
 def generate_sphere_points(sphere_positions, obst_radius=0.3, num_points_per_face=30):
     sphere_points = []
@@ -216,7 +231,7 @@ def plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions
         ax.add_collection3d(Poly3DCollection([wall], facecolors='black', linewidths=1, edgecolors='k', alpha=0.2))
 
     # Plot obstacles with different colors
-    colors = ['red', 'green', 'blue', 'orange']
+    colors = ['red', 'green',  'orange', 'blue']
     
     for obstacle, color in zip(obstacle_shapes, colors):
         for face in obstacle:
@@ -242,13 +257,13 @@ if __name__ == '__main__':
     obstacle_positions = [
         np.array([2.5, 0, 4.4]),
         np.array([2.5, 0, 0]),
-        np.array([1, -4, 3]), 
+        #np.array([1, -4, 3]), 
         np.array([5.5, 0, 2])
     ]
     obstacle_sizes = [
         np.array([1, 5, 3]),
         np.array([1, 5, 2]),
-        np.array([3, 2, 4]),
+        #np.array([3, 2, 4]),
         np.array([2.5, 5, 1])
     ]
 

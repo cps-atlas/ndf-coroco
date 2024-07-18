@@ -16,11 +16,11 @@ import jax.numpy as jnp
 from jax import jit, vmap, lax
 
 @jit
-def calculate_link_parameters(edge_lengths, link_radius):
+def calculate_link_parameters(edge_lengths):
     q1 = edge_lengths[..., 0]
     q2 = edge_lengths[..., 1]
     q3 = edge_lengths[..., 2]
-    r = link_radius
+    r = LINK_RADIUS
     
     # Calculate theta (bending angle)
     theta_expr = q1**2 + q2**2 + q3**2 - q1*q2 - q2*q3 - q1*q3
@@ -42,11 +42,14 @@ def calculate_link_parameters(edge_lengths, link_radius):
 
 
 @jit
-def compute_edge_points(edge_lengths, link_radius, link_length):
+def compute_edge_points(edge_lengths):
 
     num_pts_per_edge = 30
 
-    theta, phi = calculate_link_parameters(edge_lengths, link_radius)
+    link_radius = LINK_RADIUS
+    link_length = LINK_LENGTH
+
+    theta, phi = calculate_link_parameters(edge_lengths)
     # Calculate the bending radius
     R = jnp.where(jnp.abs(theta) < 1e-10, jnp.inf, link_length / theta)
     # Generate points for the deformed link
@@ -77,15 +80,14 @@ def compute_edge_points(edge_lengths, link_radius, link_length):
 
 
 @jit
-def compute_end_circle(states, link_radius, link_length, base_center=jnp.zeros(3), base_normal=jnp.array([0, 0, 1])):
+def compute_end_circle(states, base_center=jnp.zeros(3), base_normal=jnp.array([0, 0, 1])):
     end_center = base_center
     end_normal = base_normal
-    
-    
+
 
     for state in states:
-        edge_lengths = compute_3rd_edge_length(state, link_length)
-        edge_points = jnp.array(compute_edge_points(edge_lengths, link_radius, link_length))  # Convert to jnp.ndarray
+        edge_lengths = compute_3rd_edge_length(state)
+        edge_points = jnp.array(compute_edge_points(edge_lengths))  # Convert to jnp.ndarray
 
         rotation_matrix = jnp.where(
             jnp.array_equal(end_center, jnp.zeros(3)),
@@ -134,18 +136,19 @@ def calculate_rotation_matrix(v1, v2):
 
 
 @jit
-def compute_3rd_edge_length(state, link_length):
+def compute_3rd_edge_length(state):
     q1 = state[..., 0]
     q2 = state[..., 1]
-    q3 = 3 * link_length - q1 - q2
+    q3 = 3 * LINK_LENGTH - q1 - q2
     edge_lengths = jnp.stack([q1, q2, q3], axis=-1)
     return edge_lengths
 
 
 @jit
-def state_to_config(edge_lengths, link_radius, link_length):
-    edge_lengths_3 = compute_3rd_edge_length(edge_lengths, link_length)
-    thetas, phis = calculate_link_parameters(edge_lengths_3, link_radius)
+def state_to_config(edge_lengths):
+    edge_lengths_3 = compute_3rd_edge_length(edge_lengths)
+    thetas, phis = calculate_link_parameters(edge_lengths_3)
+
     return jnp.stack((thetas, phis), axis=-1)
 
 
@@ -154,16 +157,17 @@ for following functions, NUM_OF_LINKS < 10 is relatively small, explicit for loo
 '''
 
 @jit
-def forward_kinematics(states, link_radius, link_length, base_center = jnp.zeros(3), base_normal = jnp.array([0, 0, 1])):
+def forward_kinematics(states, base_center = jnp.zeros(3), base_normal = jnp.array([0, 0, 1])):
 
     transformations = [jnp.eye(4)]
 
     for i in range(len(states)):
 
         # Compute the end circle and normal for the current link
-        end_center, end_normal, _ = compute_end_circle(states[:i+1], link_radius, link_length, base_center, base_normal)
+        end_center, end_normal, _ = compute_end_circle(states[:i+1], base_center, base_normal)
 
         rotation_matrix = calculate_rotation_matrix(base_normal, end_normal)
+        
         translation = end_center - base_center
 
         transformation = jnp.eye(4)
@@ -185,14 +189,12 @@ def transform_point_to_link_frame(point, transformations):
 
     return jnp.array(link_frames)
 
-
-
 '''
-following function is the inference of learned C-SDF
+Batched version of running the inference of learned C-SDF, for multiple robot states and multiple obstacle_points
 '''
 
 @jit
-def evaluate_model(jax_params, rbt_configs, cable_lengths, link_radius, link_length, obstacle_points):
+def evaluate_model(jax_params, cable_lengths, obstacle_points):
     # Predict signed distances
     @jit
     def apply_model(params, inputs):
@@ -203,33 +205,105 @@ def evaluate_model(jax_params, rbt_configs, cable_lengths, link_radius, link_len
     if obstacle_points.ndim == 1:
         obstacle_points = obstacle_points.reshape(1, -1)
 
-    rbt_configs = rbt_configs.reshape(NUM_OF_LINKS, 2)
-    num_links = len(rbt_configs)
+    num_links = NUM_OF_LINKS
+    
+    # Determine batch size based on cable_lengths
+    if cable_lengths.ndim > 2:
+        batch_size = cable_lengths.shape[2]
+    else:
+        batch_size = 1  
+        cable_lengths = cable_lengths.reshape(cable_lengths.shape[0], cable_lengths.shape[1], 1)
+
+
     num_points = obstacle_points.shape[0]
 
-    # Compute the transformations using forward kinematics
-    transformations = forward_kinematics(cable_lengths, link_radius, link_length)
+    # Compute the configurations for each cable length in the batch
+    rbt_configs = jax.vmap(state_to_config, in_axes=(2, ))(cable_lengths)
+
+
+    # Compute the transformations using forward kinematics for each configuration in the batch
+    transformations = jax.vmap(forward_kinematics, in_axes=(2, ))(cable_lengths)
+
+    transformations = jnp.array(transformations)
     # Exclude the end-effector transformation
     transformations = transformations[:-1]
 
-    # Convert transformations to an ndarray
-    transformations = jnp.array(transformations)
+    # the transformations is of shape Batch_size * NUM_OF_LINKS * 4 * 4 (4*4 is the shape of a SE(3) tramsformation matrix)
+    transformations = jnp.transpose(transformations, (1, 0, 2, 3))
 
-    # Transform the points to all link frames simultaneously
-    points_link = jax.vmap(lambda T: jnp.dot(jnp.linalg.inv(T), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3])(transformations)
 
-    # Prepare the input tensor for all links
-    inputs_link = jnp.concatenate((jnp.repeat(rbt_configs, num_points, axis=0), jnp.reshape(points_link, (-1, 3))), axis=1)
+    # Transform the points to all link frames simultaneously for each configuration in the batch
+    def transform_points(T):
+        return jnp.dot(jnp.linalg.inv(T), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3]
 
-    # Forward pass for all links
-    outputs_link = apply_model(jax_params, inputs_link)
-    distances_link = outputs_link[:, 0].reshape(num_links, num_points)
+    points_link = jax.vmap(jax.vmap(transform_points, in_axes=(0,)), in_axes=(1,))(transformations)
 
-    # Find the minimum distances and closest link indices
-    min_distances = jnp.min(distances_link, axis=0)
+    # Prepare the input tensor for all links and configurations in the batch
+    inputs_link = jnp.concatenate((jnp.repeat(rbt_configs, num_points, axis=1), points_link.reshape(batch_size, -1, 3)), axis=-1)
 
+    # Forward pass for all links and configurations in the batch
+    outputs_link = jax.vmap(apply_model, in_axes=(None, 0))(jax_params, inputs_link)
+    distances_link = outputs_link[..., 0].reshape(batch_size, num_links, num_points)
+
+    # Find the minimum distances for each configuration in the batch
+    min_distances = jnp.min(distances_link, axis=1)
+
+    # jax.debug.print("🤯 min_distance {x} 🤯", x = min_distances)
 
     return min_distances
+
+
+
+'''
+following function is the inference of learned C-SDF, for a single robot state
+'''
+
+# @jit
+# def evaluate_model(jax_params, cable_lengths, obstacle_points):
+
+#     # Predict signed distances
+#     @jit
+#     def apply_model(params, inputs):
+#         return CSDFNet_JAX(HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS).apply(params, inputs)
+
+#     # Ensure obstacle_points is a 2D array
+#     obstacle_points = jnp.array(obstacle_points, dtype=jnp.float32)
+#     if obstacle_points.ndim == 1:
+#         obstacle_points = obstacle_points.reshape(1, -1)
+
+#     link_radius = LINK_RADIUS
+#     link_length = LINK_LENGTH
+#     num_links = NUM_OF_LINKS
+
+#     rbt_configs = state_to_config(cable_lengths, link_radius, link_length)
+
+#     rbt_configs = rbt_configs.reshape(num_links, 2)
+    
+#     num_points = obstacle_points.shape[0]
+
+#     # Compute the transformations using forward kinematics
+#     transformations = forward_kinematics(cable_lengths, link_radius, link_length)
+#     # Exclude the end-effector transformation
+#     transformations = transformations[:-1]
+
+#     # Convert transformations to an ndarray
+#     transformations = jnp.array(transformations)
+
+
+#     # Transform the points to all link frames simultaneously
+#     points_link = jax.vmap(lambda T: jnp.dot(jnp.linalg.inv(T), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3])(transformations)
+
+#     # Prepare the input tensor for all links
+#     inputs_link = jnp.concatenate((jnp.repeat(rbt_configs, num_points, axis=0), jnp.reshape(points_link, (-1, 3))), axis=1)
+
+#     # Forward pass for all links
+#     outputs_link = apply_model(jax_params, inputs_link)
+#     distances_link = outputs_link[:, 0].reshape(num_links, num_points)
+
+#     # Find the minimum distances and closest link indices
+#     min_distances = jnp.min(distances_link, axis=0)
+
+#     return min_distances
 
 '''
 following are non JAX functions, mainly for plotting and dataset preparation
@@ -247,8 +321,8 @@ def compute_surface_points(states, link_radius, link_length, num_points_per_circ
 
 
     for state in states:
-        edge_lengths = compute_3rd_edge_length(state, link_length)
-        edge_points = compute_edge_points(edge_lengths, link_radius, link_length)
+        edge_lengths = compute_3rd_edge_length(state)
+        edge_points = compute_edge_points(edge_lengths)
 
         # Apply rotation and translation to the edge points
         if not np.array_equal(base_center, np.array([0, 0, 0])):
@@ -350,13 +424,13 @@ def plot_links_3d(states, link_radius, link_length, ax, base_center=np.zeros(3),
     legend_elements = []
 
     for i, state in enumerate(states):
-        edge_lengths = compute_3rd_edge_length(state, link_length)
+        edge_lengths = compute_3rd_edge_length(state)
 
         # Plot the base circle
         plot_circle(base_center, link_radius, base_normal, ax)
 
         # Compute the deformed link points for each edge
-        edge_points = compute_edge_points(edge_lengths, link_radius, link_length)
+        edge_points = compute_edge_points(edge_lengths)
 
         # Apply rotation and translation to the edge points
         if not np.array_equal(base_center, np.array([0, 0, 0])):
@@ -441,11 +515,11 @@ def main():
     ax = fig.add_subplot(111, projection='3d')
 
     # Define the link parameters
-    link_radius = 0.15
-    link_length = 1.0
+    link_radius = LINK_RADIUS
+    link_length = LINK_LENGTH
 
     # Define the states for multiple links
-    states = jnp.array([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+    states = jnp.array([[2.0, 2.0], [2.0, 2.0], [2.0, 2.0], [2.0, 2.0]])
 
     # debug state
     # states =  jnp.array([[1.005272,  1.0100657] ,[1.      ,  0.999946] , [0.9991085, 0.9851592], [0.9849205,
@@ -456,17 +530,17 @@ def main():
     base_center = np.zeros(3)
     base_normal = np.array([0, 0, 1])
 
-    end_center, end_normal, _ = compute_end_circle(states, link_radius, link_length)
+    # end_center, end_normal, _ = compute_end_circle(states)
 
-    transformations = forward_kinematics(states, link_radius, link_length)
+    transformations = forward_kinematics(states)
 
-    print('transmations:', transformations)
+    # print('transmations:', transformations)
 
-    point_ws = np.array([2,2,0])
+    # point_ws = np.array([2,2,0])
 
-    link_frames = transform_point_to_link_frame(point_ws, transformations)
+    # link_frames = transform_point_to_link_frame(point_ws, transformations)
 
-    print('link_frames:', link_frames)
+    # print('link_frames:', link_frames)
 
 
     # Plot the links
@@ -474,7 +548,7 @@ def main():
 
     ax.set_xlim(-4, 4)
     ax.set_ylim(-4, 4)
-    ax.set_zlim(-2, 4)
+    ax.set_zlim(-2, 8)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
