@@ -79,7 +79,7 @@ def evaluate_csdf_3d(net, configurations, cable_lengths, points, link_radius, li
     # Compute the transformations using forward kinematics
     transformations = forward_kinematics(cable_lengths)
     # Exclude the end-effector transformation
-    transformations = transformations[:-1]
+    # transformations = transformations[:-1]
 
     # Initialize the minimum distance array
     min_distances = jnp.full(num_points, jnp.inf)
@@ -113,10 +113,8 @@ def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_r
     fig = plt.figure(figsize=(8, 8), dpi=150)
     ax = fig.add_subplot(111, projection='3d')
 
-    base_center = np.zeros(3)
-    base_normal = np.array([0, 0, 1])
 
-    plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
+    # plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
 
     # Plot surface points as green dots
     # surface_points_list = compute_surface_points([cable_lengths[0]], link_radius, link_length, num_points_per_circle=20)
@@ -133,35 +131,26 @@ def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_r
     # Set the distance threshold for emphasizing color changes
     threshold = 0.2
 
-    # Clip the distances to the threshold value
-    clipped_distances = np.clip(distances, -threshold, threshold)
+    # Define distance ranges and corresponding colors
+    distance_ranges = [
+        (0, 0.4, 'blue', 0.75),
+        (0.4, 0.8, 'orange', 0.5),
+        (0.8, 1.2, 'red', 0.3),
+    ]
 
-    # Create a colormap that emphasizes color changes near the threshold
-    cmap = plt.get_cmap('coolwarm')
-    normalized_distances = (clipped_distances + threshold) / (2 * threshold)
+    for min_dist, max_dist, color, alpha in distance_ranges:
+        condition = (distances >= min_dist) & (distances < max_dist)
+        sc = ax.scatter(xx[condition], yy[condition], zz[condition], 
+                        c=color, marker='o', s=20, alpha=alpha, 
+                        label=f'{min_dist:.1f} ≤ d < {max_dist:.1f}')
+        
+    ax.set_axis_off()
 
-    # Plot the heatmap of the signed distance values
-    sc = ax.scatter(xx.flatten(), yy.flatten(), zz.flatten(), c=distances.flatten(), cmap=cmap, alpha=0.2, s=4)
-    cbar = fig.colorbar(sc, ax=ax, label='Distance')
-
-
-    # Highlight points with distance < 0.3
-    condition = distances < threshold
-    sc_highlight = ax.scatter(xx[condition], yy[condition], zz[condition], c='blue', marker='o', s=20, alpha=0.3, label='Distance < 0.3')
-
-    # Create a colorbar with adjusted limits
-    #cbar.set_ticks([-1, 0, 1])
-    #cbar.set_ticklabels([f'<= -{threshold}', '0', f'>= {threshold}'])
-
-
-    # Set the limits and labels of the plot
-    ax.set_xlim(x_range)
-    ax.set_ylim(y_range)
-    ax.set_zlim(z_range)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    #ax.set_title('C-SDF Heatmap')
+
+    #ax.legend(loc='upper left', bbox_to_anchor=(1.05, 1), borderaxespad=0.)
 
     plt.tight_layout()
 
@@ -208,7 +197,17 @@ def main():
     link_length = LINK_LENGTH
 
     # Define the cable lengths for each link
-    cable_lengths = jnp.array([[2.0, 2.0], [1.8, 1.9], [1.9, 2.1], [2.2, 2.0]])
+    cable_lengths = jnp.array([[1.8, 2.0], [1.9, 1.9], [2.1, 2.1], [2.2, 2.0]])
+
+    fig = plt.figure(figsize=(8, 8), dpi=150)
+    ax = fig.add_subplot(111, projection='3d')
+
+    plot_links_3d(cable_lengths, link_radius, link_length, ax)
+
+    # Remove axis
+    ax.set_axis_off()
+
+    plt.show()
 
     #cable_lengths = jnp.array([[2.2, 2.0], [2.1, 2.0]])
 
@@ -249,9 +248,9 @@ def main():
     '''
 
     # Define the region of interest
-    x_range = (-4, 4)
-    y_range = (-4, 4)
-    z_range = (-2, 6)
+    x_range = (-6, 6)
+    y_range = (-6, 6)
+    z_range = (-2, 8)
 
     resolution = 40
 

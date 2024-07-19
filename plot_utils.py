@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
@@ -9,25 +10,42 @@ from robot_config import *
 
 def plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path='distances_plot.png'):
     time_steps = np.arange(len(goal_distances)) * dt
+    obst_radius = 0.7
+    
+    plt.figure(figsize=(10, 6), dpi=300)
+    
+    # Plot distance to goal as blue dotted line
+    plt.plot(time_steps, goal_distances, color='red', linestyle=':', linewidth=3, label='Distance to Goal')
 
-    obst_radius = 0.6
+    # Remove the extra dimension if it exists
+    if estimated_obstacle_distances.ndim == 3:
+        estimated_obstacle_distances = estimated_obstacle_distances.squeeze(1)
+    
+    num_obstacles = estimated_obstacle_distances.shape[1]
 
-    plt.figure(figsize=(8, 6), dpi=300)
-    plt.plot(time_steps, goal_distances, label='Distance to Goal')
 
-    # num_obstacles = estimated_obstacle_distances.shape[1]
-    # for i in range(num_obstacles):
-    #     plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, label=f'Estimated Distance to Obstacle {i+1}')
+    for i in range(num_obstacles):
+        if i == 0:
+            plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, linewidth=3, label='Estimated Distance to Obstacles')
+        else:
+            plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, linewidth=3)
+    
+    plt.axhline(y=0.1, color='black', linestyle='--', linewidth=3, label='Safety Margin')
+    
+    plt.xlabel('Time (s)', fontsize=18)
+    plt.ylabel('Distance', fontsize=18)
+    # plt.title('Distances to Goal and Estimated Distances to Obstacles over Time')
 
-    # plt.axhline(y=0.2, color='black', linestyle='--', linewidth=3, label='Safety Margin')
+    # Set tick label size to 16
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
 
-    plt.xlabel('Time (s)')
-    plt.ylabel('Distance')
-    plt.title('Distances to Goal and Estimated Distances to Obstacles over Time')
-    plt.legend()
+    plt.legend(fontsize=18, loc='upper right')
+
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(save_path, dpi=300)
+    plt.close()
 
 
 # def sample_points_on_obstacle(obstacle, num_points_per_face):
@@ -205,11 +223,7 @@ def generate_sphere_points(sphere_positions, obst_radius=0.3, num_points_per_fac
     sphere_points = np.concatenate(sphere_points, axis=0)
     return sphere_points
 
-
-
-
 def plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions, sphere_radius, ax, plt_show = False):
-
 
     obstacle_plots = []
     for i, sphere_pos in enumerate(sphere_positions):
@@ -240,14 +254,98 @@ def plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions
     # ax.scatter(obstacle_points[:, 0], obstacle_points[:, 1], obstacle_points[:, 2], c='black', s=5)
 
     # Plot goal position
-    ax.scatter(*goal_position, c='blue', marker='*', s=100)
+    ax.scatter(*goal_position, c='blue', marker='*', s=200)
 
     plt.tight_layout()
+
+    # Remove axis lines, ticks, and numbers
+    ax.set_axis_off()
+
+    # Remove background grid
+    ax.grid(False)
+
+    # Remove background panes
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
 
     if plt_show:
         plt.show()
 
-if __name__ == '__main__':
+
+def generate_random_env_3d(num_obstacles, xlim, ylim, zlim, goal_xlim, goal_ylim, goal_zlim, min_distance_obs, min_distance_goal):
+    # Generate random obstacle positions
+    obstacle_positions = []
+    obstacle_velocities = []
+
+    for _ in range(num_obstacles):
+        while True:
+            pos = np.random.uniform(low=[xlim[0], ylim[0], zlim[0]], high=[xlim[1], ylim[1], zlim[1]])
+            if all(np.linalg.norm(pos - np.array(obs_pos)) >= min_distance_obs for obs_pos in obstacle_positions):
+                obstacle_positions.append(pos)
+                break
+        vel = np.random.rand(3)
+
+        obstacle_velocities.append(vel)
+
+    obstacle_positions = np.array(obstacle_positions)
+
+    obstacle_velocities = np.array(obstacle_velocities)
+
+    # Generate random goal point
+    while True:
+        goal_point = np.random.uniform(low=[goal_xlim[0], goal_ylim[0], goal_zlim[0]], high=[goal_xlim[1], goal_ylim[1], goal_zlim[1]])
+        if all(np.linalg.norm(goal_point - obs_pos) >= min_distance_goal for obs_pos in obstacle_positions):
+            break
+
+
+    # Hard-code obstacle positions and velocities
+    # obstacle_positions = [
+    #     np.array([1., 1., 2.]),  # First obstacle
+    #     np.array([1., 1., 4.]),   # Second obstacle
+    #     np.array([2., 2., 3.]),  # First obstacle
+    #     np.array([3., 1., 4.]),   # Second obstacle
+
+    # ]
+
+
+    # obstacle_positions = np.array(obstacle_positions)
+
+    goal_point = np.array([4., 0., 4.])
+
+    return obstacle_positions, obstacle_velocities, goal_point
+
+def plot_random_env_3d(obstacle_positions, goal_point, obst_radius, ax, plt_show=False):
+    # Plot spherical obstacles
+    for sphere_pos in obstacle_positions:
+        u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
+        x = obst_radius * np.cos(u) * np.sin(v) + sphere_pos[0]
+        y = obst_radius * np.sin(u) * np.sin(v) + sphere_pos[1]
+        z = obst_radius * np.cos(v) + sphere_pos[2]
+        ax.plot_surface(x, y, z, color='red', alpha=0.6)
+
+    # Plot goal position
+    ax.scatter(*goal_point, c='blue', marker='*', s=200)
+
+    # Remove axis lines, ticks, and numbers
+    ax.set_axis_off()
+    ax.grid(False)
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+    if plt_show:
+        plt.show()
+
+def save_high_res_figure(fig, filename, dpi=300):
+    os.makedirs('figures', exist_ok=True)
+    fig.savefig(f'figures/{filename}', dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+
+
+
+def plot_and_save_realsitic_env():
+
     # Define the environment parameters
 
     corridor_pos = np.array([0, 0, -1])
@@ -255,16 +353,16 @@ if __name__ == '__main__':
     corridor_size = np.array([2, 2, 2])
 
     obstacle_positions = [
-        np.array([2.5, 0, 4.4]),
+        np.array([2.5, 0, 4.8]),
         np.array([2.5, 0, 0]),
         #np.array([1, -4, 3]), 
-        np.array([5.5, 0, 2])
+        np.array([5.3, 0, 2])
     ]
     obstacle_sizes = [
-        np.array([1, 5, 3]),
+        np.array([1, 5, 3.2]),
         np.array([1, 5, 2]),
         #np.array([3, 2, 4]),
-        np.array([2.5, 5, 1])
+        np.array([2., 5, 1])
     ]
 
 
@@ -290,16 +388,56 @@ if __name__ == '__main__':
 
     obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
     
-    # Create a figure and 3D axis
-    fig = plt.figure(figsize=(8, 8), dpi=150)
-    ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(10, 10), constrained_layout=True)
+    ax = fig.add_axes([0, 0, 1, 1], projection='3d')
 
-    ax.set_xlim(-3, 9)
-    ax.set_ylim(-6, 6)
-    ax.set_zlim(-2, 10)
+    ax.set_xlim(-1, 7)
+    ax.set_ylim(-4, 4)
+    ax.set_zlim(0, 8)
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+
+    base_center = np.zeros(3)
+    base_normal = np.array([0, 0, 1])
+
+    cable_lengths = jnp.array([[2.0, 2.0], [2.0, 2.0], [2.0, 2.], [2.0, 2.0], [2.0, 2.0]])
+
+    link_radius = LINK_RADIUS
+    link_length = LINK_LENGTH
+
+    plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
+
+    plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions, sphere_radius, ax, plt_show = True)
+
+    # save_high_res_figure(fig, '3d_environment.png')
+
+    # Close the figure to free up memory
+    plt.close(fig)
+
+def plot_and_save_random_env():
+
+    xlim = [-4, 4]
+    ylim = [-4, 4]
+    zlim = [-1, 6.0]
+
+    goal_xlim = [-3.0, 3.0]
+    goal_ylim = [-3.0, 3.0]
+    goal_zlim = [0.0, 5.0]
+
+    min_distance_obs = 1.5
+    min_distance_goal = 2.0
+
+    obst_radius = 0.6
+
+    # Create figure and 3D axis
+    fig = plt.figure(figsize=(10, 10), constrained_layout=True)
+    ax = fig.add_axes([0, 0, 1, 1], projection='3d')
+
+    # Set axis limits
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_zlim(zlim)
 
     base_center = np.zeros(3)
     base_normal = np.array([0, 0, 1])
@@ -309,6 +447,31 @@ if __name__ == '__main__':
     link_radius = LINK_RADIUS
     link_length = LINK_LENGTH
 
-    plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
 
-    plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions, sphere_radius, ax, plt_show = True)
+    obstacle_positions, obstacle_velocities, goal_point = generate_random_env_3d(
+        num_obstacles=10, xlim=xlim, ylim=ylim, zlim=zlim,
+        goal_xlim=goal_xlim, goal_ylim=goal_ylim, goal_zlim=goal_zlim,
+        min_distance_obs=min_distance_obs, min_distance_goal=min_distance_goal)
+    
+    plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
+    
+    # Plot the random environment
+    plot_random_env_3d(obstacle_positions, goal_point, obst_radius, ax, plt_show=True)
+    
+    save_high_res_figure(fig, '3d_random_environment.png')
+
+    plt.close(fig)
+
+
+if __name__ == '__main__':
+
+    # plot the realistic env
+    # plot_and_save_realsitic_env()
+
+    # plot a random env with multiple dynamic sphere obstacles
+    plot_and_save_random_env()
+
+
+
+
+

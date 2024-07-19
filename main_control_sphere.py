@@ -5,17 +5,15 @@ import imageio
 import jax
 import jax.numpy as jnp
 
-from flax.core import freeze
 import time
 
 
 
 from utils_3d import * 
 from training.config_3D import *
-from plot_utils import plot_distances
+from plot_utils import *
 
 from control.mppi_functional import setup_mppi_controller
-from main_csdf import evaluate_model
 
 from robot_3D import Robot3D
 from operate_env import Environment
@@ -46,18 +44,18 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
     num_samples = 2000
     costs_lambda = 0.03
-    cost_goal_coeff = 16.0
+    cost_goal_coeff = 15.0
     cost_safety_coeff = 1.1
     cost_goal_coeff_final = 18.0
     cost_safety_coeff_final = 1.1
 
-    control_bound = 0.25
+    control_bound = 0.3
 
-    cost_state_coeff = 10.0
+    cost_state_coeff = 100.0
 
     use_GPU = True
 
-    mppi = setup_mppi_controller(learned_CSDF=jax_params, horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+    mppi = setup_mppi_controller(learned_CSDF=jax_params, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
     # Define the initial control signal
     if mode == 'random':
@@ -65,7 +63,9 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     elif mode == 'mppi':
         control_signals = np.zeros(2 * robot.num_links)
 
-    num_steps = 100
+    num_steps = 200
+
+    goal_threshold = 0.15
 
     goal_distances = []
     estimated_obstacle_distances = []
@@ -78,33 +78,10 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         # Plot the links
         legend_elements = plot_links_3d(robot.state, robot.link_radius, robot.link_length, ax)
 
-        # Plot the goal point
-        goal_plot  = ax.plot([env.goal_point[0]], [env.goal_point[1]], [env.goal_point[2]], marker='*', markersize=12, color='blue', label='Goal')
-
-        # plot the obstacles  
-        # goal_plot, = ax.plot(env.goal_point[0], env.goal_point[1], marker='*', markersize=12, color='blue', label = 'Goal')
-        # legend_elements.append(goal_plot)
-        # Plot the obstacles
-        obstacle_plots = []
-        for i, obstacle in enumerate(env.obstacle_positions):
-            # Create a sphere
-            u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
-            x = obst_radius * np.cos(u) * np.sin(v) + obstacle[0]
-            y = obst_radius * np.sin(u) * np.sin(v) + obstacle[1]
-            z = obst_radius * np.cos(v) + obstacle[2]
-            
-            # Plot the sphere
-            sphere = ax.plot_surface(x, y, z, color='red', alpha=0.6)
-            
-            if i == 0:
-                obstacle_plot = ax.scatter([obstacle[0]], [obstacle[1]], [obstacle[2]], color='red', s=100, label='Obstacles')
-                legend_elements.append(obstacle_plot)
-
-        if obstacle_plots:
-            ax.legend(handles=legend_elements)
+        plot_random_env_3d(env.obstacle_positions, env.goal_point, env.obst_radius, ax)
 
         # Set the plot limits and labels
-        ax.set_xlim(-6, 6)
+        ax.set_xlim(-3, 9)
         ax.set_ylim(-6, 6)
         ax.set_zlim(-2, 10)
         ax.set_xlabel('X')
@@ -113,12 +90,12 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         ax.set_box_aspect((4, 4, 4))
 
         # Add legend
-        ax.legend(handles=legend_elements + [plt.Line2D([0], [0], marker='*', color='blue', linestyle='None', markersize=12, label='Goal')])
+        # ax.legend(handles=legend_elements + [plt.Line2D([0], [0], marker='*', color='blue', linestyle='None', markersize=12, label='Goal')])
 
         plt.tight_layout()
 
 
-        end_center, _, _ = compute_end_circle(robot.state, robot.link_radius, robot.link_length)
+        end_center, _, _ = compute_end_circle(robot.state)
 
         # Calculate the distance between the end center and the goal point
         goal_distance = np.linalg.norm(end_center - env.goal_point)
@@ -127,13 +104,14 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
 
         print('distance_to_goal:', goal_distance)
 
-        # convert robot state (cable lengths) to configurations
-        robot_config = state_to_config(robot.state, robot.link_radius, robot.link_length)
 
-        sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
+        # convert robot state (cable lengths) to configurations
+        robot_config = state_to_config(robot.state)
+
+        sdf_val = evaluate_model(jax_params, robot.state, env.obstacle_positions)
 
         estimated_obstacle_distances.append(sdf_val)
-        # print('estimated_obst_distances:', sdf_val)
+
 
 
         if mode == 'random':
@@ -158,7 +136,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
                 
                 robot_state = selected_robot_states[:,i].reshape(4,2)
 
-                end_center, _, _ = compute_end_circle(robot_state, robot.link_radius, robot.link_length)
+                end_center, _, _ = compute_end_circle(robot_state)
 
 
                 selected_end_effectors.append(end_center)
@@ -194,7 +172,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         total_time += dt
 
         # Check if the goal is reached
-        if goal_distance < 0.1:
+        if goal_distance < goal_threshold:
             print("Goal Reached!")
             success_count = 1
             # Freeze the video for an additional 0.5 seconds
@@ -213,14 +191,14 @@ if __name__ == '__main__':
     #trained_model = "trained_models/torch_models_3d/eikonal_train.pth"
     #trained_model = "trained_models/torch_models_3d/test_1.pth"
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_small.pth"
+    trained_model = "trained_models/torch_models_3d/eikonal_train_32.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
     jax_params = net.params
 
     # create env for quantitative statistics
-    num_environments = 1
+    num_environments = 5
     num_trials = 1
     xlim = [-4, 4]
     ylim = [-4, 4]
@@ -236,17 +214,33 @@ if __name__ == '__main__':
     dt = 0.05
     control_modes = ['mppi']
 
-    obst_radius = 0.6
+    obst_radius = 0.7
 
     # Create a directory to store the distance plots
     os.makedirs('distance_plots', exist_ok=True)
 
+    # Create a Robot3D instance
+    initial_rbt_state = jnp.ones((NUM_OF_LINKS, 2)) * LINK_LENGTH
+
     for i in range(num_environments):
-        obstacle_positions, obstacle_velocities, goal_point = generate_random_env_3d(
-            num_obstacles=6, xlim=xlim, ylim=ylim, zlim=zlim,
-            goal_xlim=goal_xlim, goal_ylim=goal_ylim, goal_zlim=goal_zlim,
-            min_distance_obs=min_distance_obs, min_distance_goal=min_distance_goal
-        )
+
+        # make sure there is no initial collision with the generated random env
+        while True:
+            obstacle_positions, obstacle_velocities, goal_point = generate_random_env_3d(
+                num_obstacles=8, xlim=xlim, ylim=ylim, zlim=zlim,
+                goal_xlim=goal_xlim, goal_ylim=goal_ylim, goal_zlim=goal_zlim,
+                min_distance_obs=min_distance_obs, min_distance_goal=min_distance_goal
+            )
+            sdf_val = evaluate_model(jax_params, initial_rbt_state, obstacle_positions)
+            min_sdf = np.min(sdf_val)
+            
+            if min_sdf > obst_radius + 0.1:
+                print(f'Environment {i+1}: Valid. Minimum SDF: {min_sdf:.4f}')
+                break
+            else:
+                print(f'Environment {i+1}: Invalid. Minimum SDF: {min_sdf:.4f}. Regenerating...')
+        
+
 
         for mode in control_modes:
             print(f"Running trials for control mode: {mode} in environment {i+1}")

@@ -93,10 +93,12 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
         nominal_length = LINK_LENGTH
         min_length = MIN_CABLE_LENGTH
         max_length = MAX_CABLE_LENGTH
-        link_radius = LINK_RADIUS
 
-        # a safety margin
-        safety_margin = 0.1                          
+        # a safety margin (for point cloud data)
+        safety_margin = 0.1  
+
+        # if dealing with sphere objects (e.g, radius = 0.7)
+        safety_margin = 0.1 + 0.7                        
 
         
         # loop over horizon

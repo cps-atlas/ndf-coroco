@@ -161,7 +161,7 @@ def forward_kinematics(states, base_center = jnp.zeros(3), base_normal = jnp.arr
 
     transformations = [jnp.eye(4)]
 
-    for i in range(len(states)):
+    for i in range(len(states) - 1):     # Exclude the end-effector transformation
 
         # Compute the end circle and normal for the current link
         end_center, end_normal, _ = compute_end_circle(states[:i+1], base_center, base_normal)
@@ -177,6 +177,7 @@ def forward_kinematics(states, base_center = jnp.zeros(3), base_normal = jnp.arr
         transformations.append(transformation)
 
     return transformations
+
 
 @jit
 def transform_point_to_link_frame(point, transformations):
@@ -226,7 +227,7 @@ def evaluate_model(jax_params, cable_lengths, obstacle_points):
 
     transformations = jnp.array(transformations)
     # Exclude the end-effector transformation
-    transformations = transformations[:-1]
+    # transformations = transformations[:-1]
 
     # the transformations is of shape Batch_size * NUM_OF_LINKS * 4 * 4 (4*4 is the shape of a SE(3) tramsformation matrix)
     transformations = jnp.transpose(transformations, (1, 0, 2, 3))
@@ -239,6 +240,7 @@ def evaluate_model(jax_params, cable_lengths, obstacle_points):
     points_link = jax.vmap(jax.vmap(transform_points, in_axes=(0,)), in_axes=(1,))(transformations)
 
     # Prepare the input tensor for all links and configurations in the batch
+
     inputs_link = jnp.concatenate((jnp.repeat(rbt_configs, num_points, axis=1), points_link.reshape(batch_size, -1, 3)), axis=-1)
 
     # Forward pass for all links and configurations in the batch
@@ -247,8 +249,6 @@ def evaluate_model(jax_params, cable_lengths, obstacle_points):
 
     # Find the minimum distances for each configuration in the batch
     min_distances = jnp.min(distances_link, axis=1)
-
-    # jax.debug.print("🤯 min_distance {x} 🤯", x = min_distances)
 
     return min_distances
 
@@ -283,12 +283,9 @@ following function is the inference of learned C-SDF, for a single robot state
 
 #     # Compute the transformations using forward kinematics
 #     transformations = forward_kinematics(cable_lengths, link_radius, link_length)
-#     # Exclude the end-effector transformation
-#     transformations = transformations[:-1]
 
 #     # Convert transformations to an ndarray
 #     transformations = jnp.array(transformations)
-
 
 #     # Transform the points to all link frames simultaneously
 #     points_link = jax.vmap(lambda T: jnp.dot(jnp.linalg.inv(T), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3])(transformations)
@@ -447,8 +444,6 @@ def plot_links_3d(states, link_radius, link_length, ax, base_center=np.zeros(3),
         # Calculate the end circle center, normal, and radius
         end_center, end_normal, end_radius = calculate_link_circle(edge_points)
 
-        # print('end_center:', end_center)
-        # print('end_mormal:', end_normal)
 
         # Plot the end circle if it's the last link
         if i == len(states) - 1:
@@ -462,50 +457,6 @@ def plot_links_3d(states, link_radius, link_length, ax, base_center=np.zeros(3),
         base_normal = end_normal
 
     return legend_elements
-
-
-def generate_random_env_3d(num_obstacles, xlim, ylim, zlim, goal_xlim, goal_ylim, goal_zlim, min_distance_obs, min_distance_goal):
-    # Generate random obstacle positions
-    obstacle_positions = []
-    obstacle_velocities = []
-
-    for _ in range(num_obstacles):
-        while True:
-            pos = np.random.uniform(low=[xlim[0], ylim[0], zlim[0]], high=[xlim[1], ylim[1], zlim[1]])
-            if all(np.linalg.norm(pos - np.array(obs_pos)) >= min_distance_obs for obs_pos in obstacle_positions):
-                obstacle_positions.append(pos)
-                break
-        vel = np.random.rand(3)
-
-        obstacle_velocities.append(vel)
-
-    obstacle_positions = np.array(obstacle_positions)
-
-    obstacle_velocities = np.array(obstacle_velocities)
-
-    # Generate random goal point
-    while True:
-        goal_point = np.random.uniform(low=[goal_xlim[0], goal_ylim[0], goal_zlim[0]], high=[goal_xlim[1], goal_ylim[1], goal_zlim[1]])
-        if all(np.linalg.norm(goal_point - obs_pos) >= min_distance_goal for obs_pos in obstacle_positions):
-            break
-
-
-    # Hard-code obstacle positions and velocities
-    # obstacle_positions = [
-    #     np.array([1., 1., 2.]),  # First obstacle
-    #     np.array([1., 1., 4.]),   # Second obstacle
-    #     np.array([2., 2., 3.]),  # First obstacle
-    #     np.array([3., 1., 4.]),   # Second obstacle
-
-    # ]
-
-
-    # obstacle_positions = np.array(obstacle_positions)
-
-    goal_point = np.array([4., 0., 4.])
-
-    return obstacle_positions, obstacle_velocities, goal_point
-
 
 
 

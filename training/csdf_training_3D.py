@@ -118,7 +118,7 @@ def train_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device,
             print(f"Training stopped early at epoch {epoch+1} as both losses are below the threshold.")
             break
 
-    return net
+    return net, epoch_loss
 
 
 '''
@@ -158,7 +158,7 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
 
             loss.backward()
             optimizer.step()
-            #clip_grad_norm_(net.parameters(), max_norm=1.0)  # Gradient clipping
+            clip_grad_norm_(net.parameters(), max_norm=1.0)  # Gradient clipping
 
             running_loss += distance_loss.item()
             running_eikonal_loss += eikonal_loss.item()
@@ -183,83 +183,4 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
             print(f"Training stopped early at epoch {epoch+1} as both losses are below the threshold.")
             break
 
-    return net
-
-
-
-'''
-train with normal loss
-'''
-
-def train_with_normal_loss_3d(net, dataloader, val_dataloader, num_epochs, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.1):
-    criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(net.parameters(), lr=learning_rate, weight_decay=1e-5)
-    net.to(device)
-
-    for epoch in range(num_epochs):
-        net.train()
-        running_loss = 0.0
-        running_normal_loss = 0.0
-        running_eikonal_loss = 0.0
-
-        for inputs, targets, normals in dataloader:
-            inputs, targets, normals = inputs.to(device), targets.to(device), normals.to(device)
-            optimizer.zero_grad()
-            outputs = net(inputs)
-
-            # Distance loss
-            distance_loss = torch.mean(torch.abs(outputs))
-
-            # Normal loss
-            gradients = torch.autograd.grad(outputs.sum(), inputs, create_graph=True)[0][:, -2:]
-            print('gradients:', gradients)
-
-            print('normals:', normals)
-
-            normal_loss = criterion(gradients, normals)
-
-            eikonal_loss = 0.0
-
-            for i in range(outputs.shape[1]):
-                workspace_pt_grad = torch.autograd.grad(outputs[:, i], inputs, grad_outputs=torch.ones_like(outputs[:, i]),
-                                                        create_graph=True, allow_unused=True)[0][:, -2:]
-                
-                
-                eikonal_loss += torch.mean((torch.norm(workspace_pt_grad, dim=1) - 1.0) ** 2)
-                #print('eikonal_loss:', eikonal_loss)
-
-            eikonal_loss = eikonal_loss / outputs.shape[1]
-
-            # Total loss
-            loss = distance_loss + normal_loss + lambda_eikonal * eikonal_loss
-            loss.backward()
-            optimizer.step()
-
-            running_loss += distance_loss.item()
-            running_normal_loss += normal_loss.item()
-            running_eikonal_loss += eikonal_loss.item()
-
-        epoch_distance_loss = running_loss / len(dataloader)
-        epoch_normal_loss = running_normal_loss / len(dataloader)
-        epoch_eikonal_loss = running_eikonal_loss / len(dataloader)
-        epoch_loss = epoch_distance_loss + epoch_normal_loss + lambda_eikonal * epoch_eikonal_loss
-
-        print(f"Epoch [{epoch+1}/{num_epochs}], Distance Loss: {epoch_distance_loss:.4f}, Normal Loss: {epoch_normal_loss:.4f}, Eikonal Loss: {epoch_eikonal_loss:.4f}")
-
-        # Evaluate the model on the validation set
-        net.eval()
-        with torch.no_grad():
-            val_loss = 0.0
-            for val_inputs, val_targets, val_normals in val_dataloader:
-                val_inputs, val_targets = val_inputs.to(device), val_targets.to(device)
-                val_outputs = net(val_inputs)
-                val_loss += torch.mean(torch.abs(val_outputs)).item()
-            val_loss /= len(val_dataloader)
-            print(f"Validation Loss: {val_loss:.4f}")
-
-        # Check if both training loss and validation loss are smaller than the threshold
-        if epoch_loss < loss_threshold and val_loss < loss_threshold:
-            print(f"Training stopped early at epoch {epoch+1} as both losses are below the threshold.")
-            break
-
-    return net
+    return net, epoch_distance_loss

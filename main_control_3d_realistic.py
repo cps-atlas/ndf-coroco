@@ -15,7 +15,6 @@ from plot_utils import *
 from control.mppi_functional import setup_mppi_controller
 
 from robot_3D import Robot3D
-from operate_env import Environment
 from robot_config import * 
 from evaluate_heatmap_3d import load_learned_csdf
 
@@ -44,13 +43,13 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
     # Set up MPPI controller
     
-    # for 6-link: horizon = 4; 5-link: horizon = 20, 4-link: horizon = 12
+    # for 6-link: horizon = 6; sample = 1000; 5-link: horizon = 24, sample = 800; 4-link: horizon = 12, 1000 samples
     # prediction_horizon >= 2
 
 
-    prediction_horizon = 12
+    prediction_horizon = 6
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 800
+    num_samples = 1000
     costs_lambda = 0.03
     cost_goal_coeff = 15.0
     cost_safety_coeff = 1.1
@@ -73,7 +72,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         control_signals = np.zeros(2 * robot.num_links)
 
     num_steps = 200
-    goal_threshold = 0.2
+    goal_threshold = 0.3
 
     period = 10
 
@@ -85,7 +84,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
     for step in range(num_steps):
         # Create a new figure and 3D axis for each frame
-        fig = plt.figure(figsize=(8, 8), dpi=150)
+        fig = plt.figure(figsize=(8, 8), dpi=300)
         ax = fig.add_subplot(111, projection='3d')
 
         # Plot the links
@@ -121,7 +120,9 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         # adaptive prediction horizon 
         if goal_distance < switch_distance and switch_count == 0:
             switch_count = 1
-            prediction_horizon = 5
+
+            # for 6link: horizon set to 3/4; other: set to 5
+            prediction_horizon = 3
             U = U[:prediction_horizon, :]   
             mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
 
@@ -171,7 +172,9 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
 
         # Set the view to face the x-z plane (view from the x-axis)
-        ax.view_init(elev=0, azim=-88)  # Set the view to face the x-z plane (view from the x-axis)
+        # different views for snapshots: for 4link: azim = -88, -70, -15, 2; for 5link: 2, 88; for 6link: top-down view: elev=90
+
+        ax.view_init(elev=0, azim=88)  # Set the view to face the x-z plane (view from the x-axis)
         fig.canvas.draw()
         buffer_x = fig.canvas.buffer_rgba()
         frame_x = np.asarray(buffer_x).reshape(buffer_x.shape[0], buffer_x.shape[1], 4)[:, :, :3]
@@ -191,7 +194,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
                 writer_x.append_data(frame_x)
 
         # Save the current frame for the y-view
-        ax.view_init(elev=0, azim=2)  # Set the view to face the y-z plane (view from the y-axis)
+        ax.view_init(elev=0, azim=-2)  # Set the view to face the y-z plane (view from the y-axis)
         fig.canvas.draw()
         buffer_y = fig.canvas.buffer_rgba()
         frame_y = np.asarray(buffer_y).reshape(buffer_y.shape[0], buffer_y.shape[1], 4)[:, :, :3]
@@ -256,13 +259,13 @@ if __name__ == '__main__':
     corridor_size = np.array([2, 2, 2])
 
     obstacle_positions = [
-        np.array([2.5, 0, 4.8]),
+        np.array([2.5, 0, 4.6]),
         np.array([2.5, 0, 0]),
         #np.array([1, -4, 3]), 
         np.array([5.3, 0, 2])
     ]
     obstacle_sizes = [
-        np.array([1, 5, 3.2]),
+        np.array([1, 5, 2.8]),
         np.array([1, 5, 2]),
         #np.array([3, 2, 4]),
         np.array([2., 5, 1])
@@ -273,7 +276,7 @@ if __name__ == '__main__':
 
     # Generate dynamic spheres
     sphere_positions = np.array([
-        np.array([4.0, -4.5, 3.6]),  # Sphere 1 position
+        np.array([4.0, -4.5, 3.8]),  # Sphere 1 position
         np.array([4.0, 0.0, 2.2])   # Sphere 2 position
     ])
     sphere_velocities = np.array([
