@@ -1,9 +1,9 @@
 # training Configuration parameters (for a single 3D link)
 INPUT_SIZE = 2 + 3  # (theta, phi) + 3D point
-HIDDEN_SIZE = 32   #64
+HIDDEN_SIZE = 16   #64
 OUTPUT_SIZE = 1    # Distance Value
-NUM_LAYERS = 3
+NUM_LAYERS = 4
 
-NUM_EPOCHS = 30         #50  
+NUM_EPOCHS = 50         #50  
 LEARNING_RATE = 0.003   #0.0015
 BATCH_SIZE = 256        #256

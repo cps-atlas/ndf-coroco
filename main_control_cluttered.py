@@ -16,7 +16,7 @@ from control.mppi_functional import setup_mppi_controller
 
 from robot_3D import Robot3D
 from robot_config import * 
-from evaluate_heatmap_3d import load_learned_csdf
+from evaluate_heatmap import load_learned_csdf
 
 
 
@@ -43,17 +43,17 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
     # Set up MPPI controller
     
-    # for 6-link: horizon = 6; sample = 1000; 5-link: horizon = 24, sample = 800; 4-link: horizon = 12, 1000 samples
+    # for 6-link: horizon = 6; sample = 1000; 5-link: horizon = 24, sample = 800; 4-link: horizon = 24, 800 samples
     # prediction_horizon >= 2
 
 
-    prediction_horizon = 6
+    prediction_horizon = 25
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 1000
+    num_samples = 600
     costs_lambda = 0.03
-    cost_goal_coeff = 15.0
+    cost_goal_coeff = 12.0
     cost_safety_coeff = 1.1
-    cost_goal_coeff_final = 18.0
+    cost_goal_coeff_final = 20.0
     cost_safety_coeff_final = 1.1
 
     control_bound = 0.3
@@ -71,7 +71,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     elif mode == 'mppi':
         control_signals = np.zeros(2 * robot.num_links)
 
-    num_steps = 200
+    num_steps = 300
     goal_threshold = 0.3
 
     period = 10
@@ -81,6 +81,10 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
     switch_count = 0
     switch_distance = 0.8
+    if NUM_OF_LINKS == 4:
+        switch_distance = 2.0
+    
+    
 
     for step in range(num_steps):
         # Create a new figure and 3D axis for each frame
@@ -150,9 +154,12 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
             all_obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
 
+            # safety margin for point cloud data observations
+            safety_margin = 0.1
+
             start_time = time.time()
 
-            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points)
+            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points, safety_margin)
 
             print('time needed for MPPI:', time.time() - start_time)
 
@@ -247,7 +254,7 @@ if __name__ == '__main__':
     #trained_model = "trained_models/torch_models_3d/eikonal_train.pth"
     #trained_model = "trained_models/torch_models_3d/test_1.pth"
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_32.pth"
+    trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
@@ -319,4 +326,4 @@ if __name__ == '__main__':
             plot_path = os.path.join('distance_plots', plot_name)
             
             # Save the distance plot with the unique name
-            plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path=plot_path)
+            # plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path=plot_path)

@@ -249,7 +249,7 @@ def plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions
     
     for obstacle, color in zip(obstacle_shapes, colors):
         for face in obstacle:
-            ax.add_collection3d(Poly3DCollection([face], facecolors=color, linewidths=1, edgecolors='k', alpha=0.6))
+            ax.add_collection3d(Poly3DCollection([face], facecolors=color, linewidths=1, edgecolors='k', alpha=0.3))
 
     # ax.scatter(obstacle_points[:, 0], obstacle_points[:, 1], obstacle_points[:, 2], c='black', s=5)
 

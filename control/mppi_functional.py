@@ -84,7 +84,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
         return lax.fori_loop( 0, samples, body, (U) )
     
     @jit
-    def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation):
+    def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation, safety_margin = 0.1):
         # Initialize robot_state
         robot_states = jnp.zeros((robot_n, horizon))
         robot_states = robot_states.at[:,0].set(robot_states_init)
@@ -94,11 +94,9 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
         min_length = MIN_CABLE_LENGTH
         max_length = MAX_CABLE_LENGTH
 
-        # a safety margin (for point cloud data)
-        safety_margin = 0.1  
 
-        # if dealing with sphere objects (e.g, radius = 0.7)
-        safety_margin = 0.1 + 0.7                        
+        # if dealing with sphere objects (e.g, radius = 0.7), if running the main_sphere, uncomment the following line:
+        # safety_margin = 0.1 + 0.7                     
 
         
         # loop over horizon
@@ -196,7 +194,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
 
     @jit
-    def rollout_states_foresee(robot_init_state, perturbed_control, goal, obstaclesX, perturbation):
+    def rollout_states_foresee(robot_init_state, perturbed_control, goal, obstaclesX, perturbation, safety_margin):
 
         ##### Initialize               
         # Robot
@@ -210,7 +208,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
         if use_gpu:
             @jit
             def body_sample(robot_states_init, perturbed_control_sample, perturbation_sample):
-                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, obstaclesX, perturbation_sample.T)
+                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states_init, perturbed_control_sample.T, obstaclesX, perturbation_sample.T, safety_margin)
                 return cost_sample, robot_states_sample
             batched_body_sample = jax.vmap( body_sample, in_axes=0 )
             # print('gpu used')
@@ -221,7 +219,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
                 robot_states, cost_total, obstaclesX = inputs     
 
                 # Get cost
-                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states[i,:,0], perturbed_control[i,:,:].T, obstaclesX, perturbation[i,:,:].T)
+                cost_sample, robot_states_sample = single_sample_rollout(goal, robot_states[i,:,0], perturbed_control[i,:,:].T, obstaclesX, perturbation[i,:,:].T, safety_margin)
                 cost_total = cost_total.at[i].set( cost_sample )
                 robot_states = robot_states.at[i,:,:].set( robot_states_sample )
                 return robot_states, cost_total, obstaclesX  
@@ -267,11 +265,11 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
     #     return states
     
     @jit
-    def compute_rollout_costs( key, U, init_state, goal, obstaclesX):
+    def compute_rollout_costs( key, U, init_state, goal, obstaclesX, safety_margin):
 
         perturbation, perturbed_control = compute_perturbed_control(key, control_mu, control_cov, control_bound, U)
 
-        sampled_robot_states, costs= rollout_states_foresee(init_state, perturbed_control, goal, obstaclesX, perturbation)
+        sampled_robot_states, costs= rollout_states_foresee(init_state, perturbed_control, goal, obstaclesX, perturbation, safety_margin)
 
         U = weighted_sum( U, perturbation, costs)
 

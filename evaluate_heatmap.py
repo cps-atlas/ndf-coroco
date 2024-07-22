@@ -16,6 +16,8 @@ from flax.core import freeze
 
 from robot_config import *
 
+import time
+
 '''
 if no GPU
 '''
@@ -72,7 +74,7 @@ def load_learned_csdf(model_type, trained_model_path = "trained_models/torch_mod
     
     return net
 
-def evaluate_csdf_3d(net, configurations, cable_lengths, points, link_radius, link_length, resolution=None, model_type='jax'):
+def evaluate_csdf_3d(net, configurations, cable_lengths, points, resolution=None, model_type='jax'):
     num_links = len(configurations)
     num_points = points.shape[0]
 
@@ -102,13 +104,14 @@ def evaluate_csdf_3d(net, configurations, cable_lengths, points, link_radius, li
         # Update the minimum distance array
         min_distances = jnp.minimum(min_distances, jnp.min(outputs_link, axis=1))
 
+
     if resolution is None:
         return min_distances
     else:
         distances = min_distances.reshape(resolution, resolution, resolution)
         return distances
 
-def plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_range, y_range, z_range, save_path=None):
+def plot_csdf_heatmap_3d(distances, x_range, y_range, z_range, save_path=None):
     # Create a figure and 3D axis
     fig = plt.figure(figsize=(8, 8), dpi=150)
     ax = fig.add_subplot(111, projection='3d')
@@ -166,7 +169,7 @@ def surface_point_csdf_check(configuration, cable_lengths, link_radius, link_len
     surface_points = np.concatenate(surface_points_list, axis=0)
 
     # Evaluate the distances for the surface points
-    surface_distances = evaluate_csdf_3d(net, configuration, cable_lengths, surface_points, link_radius, link_length, model_type=model_type)
+    surface_distances = evaluate_csdf_3d(net, configuration, cable_lengths, surface_points, model_type=model_type)
 
     # Compute the mean and standard deviation of the surface distances
     mean_surface_distance = np.mean(surface_distances)
@@ -183,13 +186,40 @@ def surface_point_csdf_check(configuration, cable_lengths, link_radius, link_len
         print("Surface distances are not close to 0. Training may need improvement.")
 
 
+def measure_inference_time(net, configurations, cable_lengths, points, model_type='jax', num_iterations=100):
+    num_links = len(configurations)
+    num_points = points.shape[0]
+
+    # Compute the transformations using forward kinematics
+    transformations = forward_kinematics(cable_lengths)
+
+    start_time = time.time()
+    for _ in range(num_iterations):
+        for i in range(num_links):
+            # Transform the points to the current link's local frame
+            points_link = jnp.dot(jnp.linalg.inv(transformations[i]), jnp.hstack((points, jnp.ones((num_points, 1)))).T).T[:, :3]
+
+            # Prepare the input tensor for the current link
+            inputs_link = jnp.hstack((jnp.repeat(configurations[i].reshape(1, -1), num_points, axis=0), points_link))
+
+            # Evaluate the signed distance values for the current link
+            if model_type == 'jax':
+                _ = net.apply(net.params, inputs_link)
+            else:
+                raise ValueError(f"Invalid model type: {model_type}. Supported type is 'jax'.")
+
+    end_time = time.time()
+    average_inference_time = (end_time - start_time) / num_iterations
+    print(f"Average inference time for {num_points} points over {num_iterations} iterations: {average_inference_time:.4f} seconds")
+
+
 
 
 def main():
     # Define the model type to evaluate ('torch' or 'jax')
     model_type = 'jax'
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_32.pth"
+    trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
@@ -226,6 +256,12 @@ def main():
 
     surface_point_csdf_check(configuration, cable_lengths, link_radius, link_length, net, model_type)
 
+    # Measure inference time for a single link
+    num_points = 1000  # Adjust the number of points as needed
+    points = np.random.rand(num_points, 3)
+    measure_inference_time(net, configuration, cable_lengths, points, model_type=model_type, num_iterations=100)
+
+
 
     points_of_interest = np.array([
         [0, 1, 0],
@@ -236,7 +272,7 @@ def main():
     ])
 
     # Evaluate the distances for the points of interest
-    distances = evaluate_csdf_3d(net, configuration, cable_lengths, points_of_interest, link_radius, link_length, model_type=model_type)
+    distances = evaluate_csdf_3d(net, configuration, cable_lengths, points_of_interest, model_type=model_type)
 
     # Print the distances for each point of interest
     for point, distance in zip(points_of_interest, distances):
@@ -261,10 +297,10 @@ def main():
     xx, yy, zz = np.meshgrid(x, y, z, indexing = 'ij')
     points = np.stack((xx.flatten(), yy.flatten(), zz.flatten()), axis=1)
 
-    distances = evaluate_csdf_3d(net, configuration, cable_lengths, points, link_radius, link_length, model_type=model_type, resolution=resolution)
+    distances = evaluate_csdf_3d(net, configuration, cable_lengths, points, model_type=model_type, resolution=resolution)
 
     # Plot the C-SDF isosurface
-    plot_csdf_heatmap_3d(cable_lengths, distances, link_radius, link_length, x_range, y_range, z_range, save_path='csdf_isosurface_3d.png')
+    plot_csdf_heatmap_3d(distances, x_range, y_range, z_range, save_path='csdf_isosurface_3d.png')
 
 
 if __name__ == "__main__":

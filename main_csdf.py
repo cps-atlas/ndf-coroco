@@ -46,7 +46,7 @@ def grid_search(train_dataset, val_dataset, device):
     hidden_sizes = [16, 24, 32]
     num_layers = [2, 3, 4]
     learning_rates = [0.001, 0.003, 0.005, 0.01]
-    batch_sizes = [64, 128, 256]
+    batch_sizes = [128, 256]
 
     best_val_loss = float('inf')
     best_hyperparams = None
@@ -65,6 +65,8 @@ def grid_search(train_dataset, val_dataset, device):
 
         # Train and evaluate the model
         net, val_loss = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05)
+
+        print('resulting loss:', val_loss)
 
         # Update the best hyperparameters and model if validation loss improves
         if val_loss < best_val_loss:
@@ -117,7 +119,7 @@ def main_torch(train_eikonal=False):
 
         net, _ = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_24.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_4_16.pth")
     else:
         print('training without eikonal start!')
         net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4)

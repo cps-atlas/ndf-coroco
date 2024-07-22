@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+
 import imageio
 import jax
 import jax.numpy as jnp
@@ -70,29 +71,19 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     goal_distances = []
     estimated_obstacle_distances = []
 
+    # Create a new figure and 3D axis for each frame
+    fig = plt.figure(figsize=(8, 8), dpi=150)
+    ax = fig.add_subplot(111, projection='3d')
+
     for step in range(num_steps):
-        # Create a new figure and 3D axis for each frame
-        fig = plt.figure(figsize=(8, 8), dpi=150)
-        ax = fig.add_subplot(111, projection='3d')
+        ax.clear()
+
 
         # Plot the links
         legend_elements = plot_links_3d(robot.state, robot.link_radius, robot.link_length, ax)
 
         plot_random_env_3d(env.obstacle_positions, env.goal_point, env.obst_radius, ax)
 
-        # Set the plot limits and labels
-        ax.set_xlim(-3, 9)
-        ax.set_ylim(-6, 6)
-        ax.set_zlim(-2, 10)
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-        ax.set_box_aspect((4, 4, 4))
-
-        # Add legend
-        # ax.legend(handles=legend_elements + [plt.Line2D([0], [0], marker='*', color='blue', linestyle='None', markersize=12, label='Goal')])
-
-        plt.tight_layout()
 
 
         end_center, _, _ = compute_end_circle(robot.state)
@@ -148,23 +139,21 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
 
             ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
 
+        # Set the plot limits and labels
+        ax.set_xlim(-3, 9)
+        ax.set_ylim(-6, 6)
+        ax.set_zlim(-2, 10)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_box_aspect((4, 4, 4))
+
+        # Redraw the plot
+        fig.canvas.draw_idle()
+        plt.tight_layout()
+        plt.pause(0.01)  # Add a small pause to allow the plot to update
 
 
-        # Save the current frame
-        fig.canvas.draw()
-        frame = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        frame = frame.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        writer.append_data(frame)
-
-        # Freeze the video at the initial states for 0.5 seconds
-        if step == 0:
-            for _ in range(int(0.5 / dt)):
-                writer.append_data(frame)
-
-        plt.close(fig)
-
-
-        # print('control:', control_signals)
 
         # Update the robot's edge lengths using the Robot3D instance
         robot.update_edge_lengths(control_signals, dt)
@@ -174,16 +163,11 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
 
         total_time += dt
 
-        # Check if the goal is reached
         if goal_distance < goal_threshold:
             print("Goal Reached!")
             success_count = 1
-            # Freeze the video for an additional 0.5 seconds
-            for _ in range(int(0.8 / dt)):
-                writer.append_data(frame)
             break
-
-    writer.close()
+    plt.show()
 
     return success_count, collision_count, total_time, goal_distances, estimated_obstacle_distances
 
