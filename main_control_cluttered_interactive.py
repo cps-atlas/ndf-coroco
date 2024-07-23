@@ -25,58 +25,46 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     total_time = 0.0
 
     # Create directory structure for saving videos
-    result_dir = 'result_videos_new'
+    result_dir = 'result_videos_cluttered'
     env_dir = f'env{env_idx+1}'
     mode_dir = mode
-    video_name = f'trial{trial_idx+1}.mp4'
 
     os.makedirs(os.path.join(result_dir, env_dir, mode_dir), exist_ok=True)
-    video_name_x = f'trial{trial_idx+1}_x_view.mp4'
-    video_name_y = f'trial{trial_idx+1}_y_view.mp4'
-
-    video_path_x = os.path.join(result_dir, env_dir, mode_dir, video_name_x)
-    video_path_y = os.path.join(result_dir, env_dir, mode_dir, video_name_y)
-
-    writer_x = imageio.get_writer(video_path_x, fps=int(1/dt))
-    writer_y = imageio.get_writer(video_path_y, fps=int(1/dt))
+    video_name = f'Link{NUM_OF_LINKS}.mp4'
 
 
     # Set up MPPI controller
     
-    # for 6-link: horizon = 6; sample = 1000; 5-link: horizon = 24, sample = 800; 4-link: horizon = 24, 800 samples
+    # for 6-link: horizon = 6; sample = 1000; 5-link: horizon = 24, sample = 800; 4-link: horizon = 18, 800 samples
     # prediction_horizon >= 2
 
-    # initialize a few MPPIs 
 
-
-    prediction_horizon = 12
-    U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
     num_samples = 800
     costs_lambda = 0.03
     cost_goal_coeff = 12.0
     cost_safety_coeff = 1.1
-    cost_goal_coeff_final = 20.0
+    cost_goal_coeff_final = 22.0
     cost_safety_coeff_final = 1.1
 
     control_bound = 0.3
 
-    cost_state_coeff = 10.0
+    cost_state_coeff = 100.0
 
     use_GPU = True
 
+    prediction_horizon = 20
 
-
-    mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
-
-
-    prediction_horizon_2 = 5
-    mppi_2 = setup_mppi_controller(learned_CSDF=jax_params, robot_n = 2 * robot.num_links, initial_horizon=prediction_horizon_2, samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound, dt=dt, u_guess=None, use_GPU=use_GPU, costs_lambda=costs_lambda, cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff, cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final, cost_state_coeff=cost_state_coeff)
+    U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
+    mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n=2 * robot.num_links, initial_horizon=prediction_horizon,
+                                    samples=num_samples, input_size=2*robot.num_links, control_bound=control_bound,
+                                    dt=dt, u_guess=U, use_GPU=use_GPU, costs_lambda=costs_lambda,
+                                    cost_goal_coeff=cost_goal_coeff, cost_safety_coeff=cost_safety_coeff,
+                                    cost_goal_coeff_final=cost_goal_coeff_final, cost_safety_coeff_final=cost_safety_coeff_final,
+                                    cost_state_coeff=cost_state_coeff)
 
     # Define the initial control signal
     if mode == 'random':
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
-    elif mode == 'mppi':
-        control_signals = np.zeros(2 * robot.num_links)
 
     num_steps = 300
     goal_threshold = 0.3
@@ -86,15 +74,17 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     goal_distances = []
     estimated_obstacle_distances = []
 
-    switch_count = 0
-    switch_distance = 0.8
-    if NUM_OF_LINKS == 4:
-        switch_distance = 2.0
+    # switch_count = 0
+    # switch_distance = 0.8
+    # if NUM_OF_LINKS == 4:
+    #     switch_distance = 2.0
 
 
     # Create a new figure and 3D axis for each frame
     fig = plt.figure(figsize=(8, 8), dpi=150)
-    ax = fig.add_subplot(111, projection='3d')    
+    ax = fig.add_subplot(111, projection='3d')   
+
+    frames = [] 
     
 
     for step in range(num_steps):
@@ -116,11 +106,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
         print('distance_to_goal:', goal_distance)
 
-        # adaptive prediction horizon 
-        if goal_distance < switch_distance and switch_count == 0:
-            switch_count = 1
-            U = 0.0 * jnp.ones((prediction_horizon_2, 2 * robot.num_links)) 
-            mppi = mppi_2
+
 
             # for 6link: horizon set to 3/4; other: set to 5
  
@@ -138,6 +124,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             # Update the control signal with the perturbation, clip the control signal to the desired range
             control_signals = np.clip(control_signals + perturbation, -0.12, 0.12)
         elif mode == 'mppi':
+
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
 
@@ -150,6 +137,8 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             safety_margin = 0.1
 
             start_time = time.time()
+
+
 
             robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points, safety_margin)
 
@@ -183,6 +172,13 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         # Redraw the plot
         fig.canvas.draw_idle()
         plt.tight_layout()
+        # Capture the current plot image
+        fig.canvas.draw()
+        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        frames.append(image)
+
+
         plt.pause(0.01)  # Add a small pause to allow the plot to update
 
 
@@ -211,15 +207,16 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             break
 
     plt.show()
+    # remove the 1st frame
+    video_path = os.path.join(result_dir, env_dir, mode_dir, video_name)
+    imageio.mimsave(video_path, frames[1:], fps=int(1/dt))
+    # imageio.mimsave(video_path, frames[1:], fps=int(50))
 
     return goal_distances, estimated_obstacle_distances
 
 if __name__ == '__main__':
 
     model_type = 'jax'
-
-    #trained_model = "trained_models/torch_models_3d/eikonal_train.pth"
-    #trained_model = "trained_models/torch_models_3d/test_1.pth"
 
     trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
@@ -239,7 +236,7 @@ if __name__ == '__main__':
         np.array([5.3, 0, 2])
     ]
     obstacle_sizes = [
-        np.array([1, 5, 3]),
+        np.array([1, 4.8, 3]),
         np.array([1, 5, 2]),
         #np.array([3, 2, 4]),
         np.array([2., 5, 1])
@@ -291,6 +288,3 @@ if __name__ == '__main__':
             # Generate a unique name for the distance plot
             plot_name = f'env{1}_{mode}_trial{1}_distances.png'
             plot_path = os.path.join('distance_plots', plot_name)
-            
-            # Save the distance plot with the unique name
-            # plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path=plot_path)

@@ -18,7 +18,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
     :param learned_CSDF: Learned N-CSDF for robot shape modeling (a link)
     :param robot_n: Dimension of states
-    :param input_size: Control input dimension
+    :param input_size: Control input dimension. In the CDSR mode, it equals to robot_n
     :param horizon: Initial prediction time horizon
     :param samples: Number of control samples around the initial guess
     :param control_bound: Control bounds
@@ -251,18 +251,6 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
         states = lax.fori_loop(0, horizon, body, states)
         return states
 
-    # @jit
-    # def rollout_control(init_state, actions):
-    #     states = jnp.zeros((robot_n, horizon + 1))
-    #     states = states.at[:, 0].set(init_state.reshape(-1, 1)[:, 0])
-
-    #     def scan_body(states, i):
-    #         states = states.at[:, i + 1].set(robot_dynamics_step(states[:, i], actions[i, :].reshape(-1, 1))[:, 0])
-    #         return states, None
-
-    #     states, _ = lax.scan(scan_body, states, jnp.arange(horizon))
-
-    #     return states
     
     @jit
     def compute_rollout_costs( key, U, init_state, goal, obstaclesX, safety_margin):
