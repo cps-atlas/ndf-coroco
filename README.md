@@ -1,10 +1,10 @@
-Neural CSDF for Continuum Robot Control
+Neural CEDF for Continuum Robot Control
 ===========================================
 
 [[Website]](https://github.com)
 [[Paper]](https://arxiv.org)
 
-This repository contains implementations for the work "Neural Configuration Distance Function for Continuum Robot Control".
+This repository contains official implementations for the work "Neural Configuration Distance Function for Continuum Robot Control".
 
 If you find our work useful, please consider citing our paper:
 ```
