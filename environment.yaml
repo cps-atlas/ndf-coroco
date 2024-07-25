@@ -193,4 +193,3 @@ dependencies:
       - shapely==2.0.4
       - tensorstore==0.1.61
       - toolz==0.12.1
-prefix: /home/cps/miniconda3/envs/neural_jsdf
