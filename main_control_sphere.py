@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 
 import time
+import argparse
 
 
 
@@ -22,7 +23,7 @@ from robot_config import *
 from evaluate_heatmap import load_learned_csdf
 
 
-def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
+def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, interactive_window = True):
     # Initialize the parameters for return
     success_count = 0
     collision_count = 0
@@ -71,13 +72,14 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
     goal_distances = []
     estimated_obstacle_distances = []
 
-    # Create a new figure and 3D axis for each frame
-    fig = plt.figure(figsize=(8, 8), dpi = 150)
+
+    fig = plt.figure(figsize=(8, 8), dpi=150)
     ax = fig.add_subplot(111, projection='3d')
 
     frames = []
 
     for step in range(num_steps):
+        
         ax.clear()
 
 
@@ -155,8 +157,8 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
         image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         frames.append(image)
 
-
-        plt.pause(0.01)  # Add a small pause to allow the plot to update
+        if interactive_window:
+            plt.pause(0.02)  # Add a small pause to allow the plot to update
 
         # Update the robot's edge lengths using the Robot3D instance
         robot.update_edge_lengths(control_signals, dt)
@@ -171,11 +173,17 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0):
             success_count = 1
             break
 
-    plt.show()
+    if interactive_window:
+        plt.show()    
     video_path = os.path.join(result_dir, env_dir, mode_dir, video_name)
-    imageio.mimsave(video_path, frames[1:], fps=int(50))
+    imageio.mimsave(video_path, frames[1:], fps=int(1/dt))
 
     return success_count, collision_count, total_time, goal_distances, estimated_obstacle_distances
+
+parser = argparse.ArgumentParser(description='Run the robot simulation.')
+parser.add_argument('--no_interactive', dest='interactive_window', action='store_false', help='Disable interactive plotting')
+parser.set_defaults(interactive_window=True)
+args = parser.parse_args()
 
 if __name__ == '__main__':
 
@@ -248,7 +256,7 @@ if __name__ == '__main__':
                 # Create the operation environment
                 env = Environment(obstacle_positions=obstacle_positions, obstacle_velocities=obstacle_velocities, obst_radius=obst_radius, goal_point=goal_point)
 
-                trial_success, trial_collision, trial_time, goal_distances, estimated_obstacle_distances = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j)
+                trial_success, trial_collision, trial_time, goal_distances, estimated_obstacle_distances = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j, interactive_window=args.interactive_window)
                 success_count += trial_success
                 collision_count += trial_collision
                 total_time += trial_time

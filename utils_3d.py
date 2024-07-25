@@ -417,7 +417,7 @@ def plot_circle(center, radius, normal, ax, color='k'):
 
 
 def plot_links_3d(states, link_radius, link_length, ax, base_center=np.zeros(3), base_normal=np.array([0, 0, 1])):
-    colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k']
+    colors = ['r', 'g', 'b', 'c', 'm', 'y', 'k', 'r', 'g', 'b']
     legend_elements = []
 
     for i, state in enumerate(states):
