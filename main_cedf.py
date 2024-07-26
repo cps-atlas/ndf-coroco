@@ -21,24 +21,6 @@ if no GPU
 '''
 # jax.config.update('jax_platform_name', 'cpu')
 
-# @jit
-# def compute_cbf_value_and_grad(jax_params, edge_lengths, obstacle_points, obstacle_velocities, link_radius, link_length):
-#     # Compute the distances and gradients from the robot to each obstacle point
-#     distances, rbt_gradients, obst_gradients = evaluate_model(jax_params, edge_lengths, obstacle_points, link_radius, link_length)
-
-#     # Ensure distances has the correct shape (num_obstacle_points,)
-#     assert distances.shape[0] == len(obstacle_points), "Mismatch in number of obstacle points"
-
-#     # Extract the minimum distance and corresponding gradients
-#     min_index = jnp.argmin(distances)
-#     cbf_h_val = distances[min_index]
-#     cbf_h_grad = rbt_gradients[min_index]
-
-#     # Compute the CBF time derivative (cbf_t_grad) for the closest obstacle
-#     cbf_t_grad = obst_gradients[min_index] @ obstacle_velocities[min_index]
-
-#     return cbf_h_val, cbf_h_grad, cbf_t_grad
-
 
 
 def grid_search(train_dataset, val_dataset, device):
@@ -88,7 +70,7 @@ following is training with pytorch
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
 
-    with open('training_data/dataset_3d_single_link.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link_large.pickle', 'rb') as f:
         training_data = pickle.load(f)
 
 
@@ -119,7 +101,7 @@ def main_torch(train_eikonal=False):
 
         net, _ = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_4_16.pth")
+        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_4_16_new.pth")
     else:
         print('training without eikonal start!')
         net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4)

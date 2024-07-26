@@ -39,7 +39,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
 
 
     # Set up MPPI controller
-    prediction_horizon = 15
+    prediction_horizon = 12
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
     num_samples = 2000
     costs_lambda = 0.03
@@ -217,6 +217,9 @@ if __name__ == '__main__':
 
     obst_radius = SPHERE_RADIUS
 
+    # the period for dynamic obstacles motion
+    obst_period = 4 
+
     # Create a directory to store the distance plots
     os.makedirs('distance_plots', exist_ok=True)
 
@@ -254,7 +257,7 @@ if __name__ == '__main__':
                 robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
                 # Create the operation environment
-                env = Environment(obstacle_positions=obstacle_positions, obstacle_velocities=obstacle_velocities, obst_radius=obst_radius, goal_point=goal_point)
+                env = Environment(obstacle_positions=obstacle_positions, obstacle_velocities=obstacle_velocities, obst_radius=obst_radius, goal_point=goal_point, period = obst_period)
 
                 trial_success, trial_collision, trial_time, goal_distances, estimated_obstacle_distances = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j, interactive_window=args.interactive_window)
                 success_count += trial_success

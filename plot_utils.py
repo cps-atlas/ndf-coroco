@@ -449,7 +449,7 @@ def plot_and_save_random_env():
 
 
     obstacle_positions, obstacle_velocities, goal_point = generate_random_env_3d(
-        num_obstacles=10, xlim=xlim, ylim=ylim, zlim=zlim,
+        num_obstacles=12, xlim=xlim, ylim=ylim, zlim=zlim,
         goal_xlim=goal_xlim, goal_ylim=goal_ylim, goal_zlim=goal_zlim,
         min_distance_obs=min_distance_obs, min_distance_goal=min_distance_goal)
     
@@ -466,7 +466,7 @@ def plot_and_save_random_env():
 if __name__ == '__main__':
 
     # plot the realistic env
-    # plot_and_save_realsitic_env()
+    plot_and_save_realsitic_env()
 
     # plot a random env with multiple dynamic sphere obstacles
     plot_and_save_random_env()

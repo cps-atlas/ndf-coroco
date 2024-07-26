@@ -129,7 +129,7 @@ def visualize_dataset_3d_single_link(dataset):
 if __name__ == '__main__':
     # Example usage
     num_configs = 250
-    length_range = [1.6, 2.4]
+    length_range = [MIN_CABLE_LENGTH, MAX_CABLE_LENGTH]
     link_radius = LINK_RADIUS
     link_length = LINK_LENGTH
     workspace_resolution = 32
