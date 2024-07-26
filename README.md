@@ -39,13 +39,15 @@ To train the neural CEDF:
 python main_cedf.py
 ```
 
-    *   Adjust training parameters in training/config_3D.py
-    *   Default training dataset is in training_data/
-    *   To customize the continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the command:
-    ```
-    python data_prepare_3D_link.py
-    ```
-    to prepare the dataset for the customized continuum robot link. 
+*   Adjust training parameters in training/config_3D.py
+*   Default training dataset is in training_data/
+*   To customize the continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the command:
+
+```
+python data_prepare_3D_link.py
+```
+    
+to prepare the dataset for the customized continuum robot link. 
 
 
 
@@ -76,6 +78,7 @@ python main_control_sphere.py --no_interactive
 
 ## 📊 Results
 
-Simulation videos: results_videos_sphere/ or results_videos_cluttered/
+Simulation videos: results_videos_sphere/ or results_videos_cluttered/  
+
 Distance plots: distance_plots/
 
