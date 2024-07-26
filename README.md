@@ -34,17 +34,17 @@ jax.config.update('jax_platform_name', 'cpu')
 
 ## 🧠 Neural CEDF Training
 
-To train the neural CEDF:
+To train the neural CEDF, run the file:
 ```
-python main_cedf.py
+main_cedf.py
 ```
 
 *   Adjust training parameters in training/config_3D.py
 *   Default training dataset is in training_data/
-*   To customize the continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the command:
+*   To customize the continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the file:
 
 ```
-python data_prepare_3D_link.py
+data_prepare_3D_link.py
 ```
     
 to prepare the dataset for the customized continuum robot link. 
@@ -54,8 +54,8 @@ to prepare the dataset for the customized continuum robot link.
 ## 🤖 Continuum Robot Navigation Simulation
 
 Customize simulation settings in robot_config.py: 
-    + Number of robot links
-    + Environment details (obstacles, number of simulated environments, ...)
+*  Number of robot links
+*  Environment details (obstacles, number of simulated environments, ...)
 
 
 The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/eikonal_4_16.pth
@@ -66,7 +66,7 @@ The default N-CEDF model for navigation simualtion is trained_models/torch_model
 main_control_sphere.py
 ```
 
-2. Cluttered Environment, run the file
+2. Cluttered Environment: 
 ```
 main_control_cluttered.py
 ```
