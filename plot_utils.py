@@ -8,9 +8,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from utils_3d import *
 from robot_config import *
 
-def plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path='distances_plot.png'):
+def plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt, save_path='distances_plot.png'):
     time_steps = np.arange(len(goal_distances)) * dt
-    obst_radius = 0.7
     
     plt.figure(figsize=(10, 6), dpi=300)
     

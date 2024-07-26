@@ -271,7 +271,7 @@ if __name__ == '__main__':
                 plot_path = os.path.join('distance_plots', plot_name)
                 
                 # Save the distance plot with the unique name
-                plot_distances(goal_distances, estimated_obstacle_distances, dt, save_path=plot_path)
+                plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt, save_path=plot_path)
 
             success_rate = success_count / num_trials
             collision_rate = collision_count / num_trials
