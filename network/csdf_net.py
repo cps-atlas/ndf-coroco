@@ -1,7 +1,6 @@
 import torch.nn as nn
 
 from flax import linen as jnn
-
 from jax.nn.initializers import he_uniform
 
 class CSDFNet(nn.Module):

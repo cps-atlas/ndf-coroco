@@ -7,7 +7,7 @@ from utils_3d import *
 from robot_config import *
 
 # if no gpu available
-# jax.config.update('jax_platform_name', 'cpu')
+jax.config.update('jax_platform_name', 'cpu')
 
 
     
@@ -96,7 +96,10 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
 
         # if dealing with sphere objects (e.g, radius = 0.7), if running the main_sphere, uncomment the following line:
-        # safety_margin = 0.1 + 0.7                     
+        # safety_margin = 0.1 + 0.7   
+        # 
+
+        goal_normal = jnp.array([1., 0., 0.])                  
 
         
         # loop over horizon
@@ -110,10 +113,10 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
             robot_state = robot_state.reshape(NUM_OF_LINKS, 2)
 
 
-            end_center, _, _ = compute_end_circle(robot_state)
+            end_center, end_normal, _ = compute_end_circle(robot_state)
 
             # Compute the distance between the end center and the goal
-            end_center_distance = jnp.linalg.norm(goal - end_center)
+            end_center_distance = jnp.linalg.norm(goal - end_center) + jnp.linalg.norm(goal_normal - end_normal)
 
             #jax.debug.print("🤯 i {index} end_center_distance {x} 🤯, state {state},", index=i, x=end_center_distance, state=robot_state.reshape(1,-1))
 
@@ -123,9 +126,10 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
             '''
             obstacle avoidance cost
             '''
+            if obstaclesX.shape[0] > 0:   # if there are detected obstacles
 
-            csdf_distances = evaluate_model(jax_params, robot_state.squeeze(), obstaclesX)
-            cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(csdf_distances)- safety_margin, 0.01]))
+                csdf_distances = evaluate_model(jax_params, robot_state.squeeze(), obstaclesX)
+                cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(csdf_distances)- safety_margin, 0.01]))
 
 
             # Compute the state constraint violation cost
@@ -184,9 +188,10 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
         cost_sample = cost_sample + cost_perturbation_coeff * ((perturbed_control[:, [horizon]]-perturbation[:,[horizon]]).T @ control_cov_inv @ perturbation[:,[horizon]])[0,0]
 
-        csdf_distances = evaluate_model(jax_params, robot_state.squeeze(), obstaclesX)
-        
-        cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(csdf_distances) - safety_margin, 0.01]))
+
+        if obstaclesX.shape[0] > 0:   # if there are detected obstacles
+            csdf_distances = evaluate_model(jax_params, robot_state.squeeze(), obstaclesX)
+            cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(csdf_distances) - safety_margin, 0.01]))
 
         return cost_sample, robot_states
 
