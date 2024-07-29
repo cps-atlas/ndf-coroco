@@ -39,8 +39,8 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
     # prediction_horizon >= 2
 
 
-    num_samples = 800
-    costs_lambda = 0.03
+    num_samples = 1000
+    costs_lambda = 0.02
     cost_goal_coeff = 12.0
     cost_safety_coeff = 1.1
     cost_goal_coeff_final = 22.0
@@ -52,7 +52,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     use_GPU = False
 
-    prediction_horizon = 20
+    prediction_horizon = 8
 
     if NUM_OF_LINKS > 6:
         prediction_horizon = 8
@@ -71,6 +71,8 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     num_steps = 300
     goal_threshold = 0.4
+
+    goal_count = 0
 
     period = 10
 
@@ -116,6 +118,10 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         #estimated_obstacle_distances.append(sdf_val)
         # print('estimated_obst_distances:', sdf_val)
 
+        if goal_distance < goal_threshold:
+
+            goal_count = 1
+
 
         if mode == 'random':
             # Generate a random perturbation vector
@@ -123,7 +129,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             # Update the control signal with the perturbation, clip the control signal to the desired range
             control_signals = np.clip(control_signals + perturbation, -0.12, 0.12)
-        elif mode == 'mppi':
+        elif mode == 'mppi' and goal_count==0:
 
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
@@ -156,6 +162,43 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
 
+        else:
+            print("Charging Port Reached!")
+
+            key = jax.random.PRNGKey(step)
+            key, subkey = jax.random.split(key)
+
+
+
+            # safety margin for point cloud data observations
+            safety_margin = 0.1
+
+            start_time = time.time()
+
+            goal_pos_updated = goal_pos + np.array([1.3, 0, 0])
+
+            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos_updated, np.array([]), safety_margin)
+
+            print('time needed for MPPI:', time.time() - start_time)
+
+            # Plot the trajectory of the end-effector along the selected states
+            selected_end_effectors = []
+            for i in range(selected_robot_states.shape[1]):
+                
+                robot_state = selected_robot_states[:,i].reshape(robot.num_links, 2)
+
+                end_center, _, _ = compute_end_circle(robot_state)
+
+
+                selected_end_effectors.append(end_center)
+
+            selected_end_effectors = np.array(selected_end_effectors)
+
+            ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
+
+            if np.linalg.norm(end_center - goal_pos_updated) < 0.05:
+                break
+
         # Set the plot limits and labels
         ax.set_xlim(-3, 9)
         ax.set_ylim(-6, 6)
@@ -179,12 +222,6 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
             plt.pause(0.01)  # Add a small pause to allow the plot to update
 
 
-
-        # Update the robot's edge lengths using the Robot3D instance
-        robot.update_edge_lengths(control_signals, dt)
-
-        total_time += dt
-
         # t = total_time % period  # Time within the current period
         
         # # Calculate the velocity based on the current time in the period
@@ -198,10 +235,12 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         # sphere_positions += obstacle_velocities * dt
 
         # Check if the goal is reached
-        if goal_distance < goal_threshold:
-            print("Charging Port Reached!")
-            # Freeze the video for an additional 0.5 seconds
-            break
+
+
+        # Update the robot's edge lengths using the Robot3D instance
+        robot.update_edge_lengths(control_signals, dt)
+
+        total_time += dt
 
     if interactive_window:
         plt.show()
