@@ -91,7 +91,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         ax.clear()
 
         # Plot the links
-        legend_elements = plot_links_3d(robot.state, robot.link_radius, robot.link_length, ax)
+        plot_links_3d(robot.state, robot.link_radius, robot.link_length, ax)
 
         plot_charging_env(wall_positions, charging_port_shape, ax)
 
