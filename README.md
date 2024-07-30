@@ -64,7 +64,7 @@ Customize simulation settings in robot_config.py:
 The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/eikonal_4_16.pth
 
 
-1. Dynamic Environment with Multiple Spheres, run the command 
+1. Dynamic Environment with Multiple Spheres, run the file
 ```
 main_control_sphere.py
 ```
@@ -72,6 +72,11 @@ main_control_sphere.py
 2. Cluttered Environment: 
 ```
 main_control_cluttered.py
+```
+
+3. Charging Port Application: 
+```
+main_control_charging.py
 ```
 
 Add --no_interactive flag to disable the interactive window:
