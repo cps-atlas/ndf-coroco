@@ -11,7 +11,7 @@ If you find our work useful, please consider citing our paper:
 @article{}
 ```
 
-![4-link](results_videos_cluttered/link4.gif) ![5-link](results_videos_cluttered/link5.gif) ![7-link](results_videos_cluttered/link7.gif)
+![4-link](result_videos_cluttered/link4.gif) ![5-link](result_videos_cluttered/link5.gif) ![7-link](result_videos_cluttered/link7.gif)
 
 # 🚀 Quick Start
 Clone the repository: 
