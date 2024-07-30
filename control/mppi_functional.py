@@ -193,6 +193,22 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
             csdf_distances = evaluate_model(jax_params, robot_state.squeeze(), obstaclesX)
             cost_sample = cost_sample + cost_safety_coeff_final / jnp.max(jnp.array([jnp.min(csdf_distances) - safety_margin, 0.01]))
 
+        # Compute the state constraint violation cost
+        length_1 = robot_state.squeeze()[:, 0]
+        length_2 = robot_state.squeeze()[:, 1]
+        length_3 = 3 * nominal_length - length_1 - length_2
+
+        # Compute the state constraint violation for each edge length, including the third edge length
+        state_constraint_violation_1 = jnp.maximum(min_length - length_1, 0) + jnp.maximum(length_1 - max_length, 0)
+        state_constraint_violation_2 = jnp.maximum(min_length - length_2, 0) + jnp.maximum(length_2 - max_length, 0)
+        state_constraint_violation_3 = jnp.maximum(min_length - length_3, 0) + jnp.maximum(length_3 - max_length, 0)
+
+
+        # Sum up the state constraint violations for all edge lengths and all links
+        state_constraint_violation = jnp.sum(state_constraint_violation_1 + state_constraint_violation_2 + state_constraint_violation_3)
+
+        cost_sample = cost_sample + cost_state_coeff * state_constraint_violation
+
         return cost_sample, robot_states
 
 

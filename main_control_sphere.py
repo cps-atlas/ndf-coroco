@@ -41,16 +41,16 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
     # Set up MPPI controller
     prediction_horizon = 12
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
-    num_samples = 2000
-    costs_lambda = 0.03
+    num_samples = 1000
+    costs_lambda = 0.02
     cost_goal_coeff = 12.0
     cost_safety_coeff = 1.1
-    cost_goal_coeff_final = 22.0
+    cost_goal_coeff_final = 12.0
     cost_safety_coeff_final = 1.1
 
     control_bound = 0.3
 
-    cost_state_coeff = 100.0
+    cost_state_coeff = 50.0
 
     use_GPU = True
 

@@ -40,15 +40,15 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
 
     num_samples = 800
-    costs_lambda = 0.03
+    costs_lambda = 0.02
     cost_goal_coeff = 12.0
     cost_safety_coeff = 1.1
-    cost_goal_coeff_final = 22.0
+    cost_goal_coeff_final = 12.0
     cost_safety_coeff_final = 1.1
 
     control_bound = 0.3
 
-    cost_state_coeff = 100.0
+    cost_state_coeff = 50.0
 
     use_GPU = True
 
