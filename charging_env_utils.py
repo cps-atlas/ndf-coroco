@@ -4,14 +4,14 @@ import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-from plot_utils import save_high_res_figure
+from plot_utils import save_high_res_figure, sample_points_on_face
 from utils_3d import *
 from robot_config import *
 
 
 
 
-def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_position, charging_port_size):
+def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_position, charging_port_size, obst_points_per_unit):
     # Generate corridor walls (unchanged from original)
     wall_positions = [
         # Bottom face
@@ -93,7 +93,57 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
         ]),
     ]
 
-    return wall_positions, charging_port_shape
+    left_wall_positions = []
+
+    # Top rectangle
+    left_wall_positions.append(np.array([
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, charging_port_position[2] + charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, charging_port_position[2] + charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+    ]))
+
+    # Bottom rectangle
+    left_wall_positions.append(np.array([
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, charging_port_position[2] - charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, charging_port_position[2] - charging_port_size[2] / 2],
+    ]))
+
+    # Left rectangle
+    left_wall_positions.append(np.array([
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, charging_port_position[2] - charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, charging_port_position[1] - charging_port_size[1] / 2, charging_port_position[2] - charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, charging_port_position[1] - charging_port_size[1] / 2, charging_port_position[2] + charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, charging_port_position[2] + charging_port_size[2] / 2],
+    ]))
+
+    # Right rectangle
+    left_wall_positions.append(np.array([
+        [corridor_pos[0] - corridor_size[0] / 2, charging_port_position[1] + charging_port_size[1] / 2, charging_port_position[2] - charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, charging_port_position[2] - charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, charging_port_position[2] + charging_port_size[2] / 2],
+        [corridor_pos[0] - corridor_size[0] / 2, charging_port_position[1] + charging_port_size[1] / 2, charging_port_position[2] + charging_port_size[2] / 2],
+    ]))
+
+    wall_positions.extend(left_wall_positions)
+
+    obstacle_points = []
+    sampled_points = []
+    for face in left_wall_positions:
+        face_points = sample_points_on_face(face, obst_points_per_unit)
+            
+        sampled_points.append(face_points)
+
+    # Concatenate the sampled points for the current obstacle
+    obstacle_points.append(np.concatenate(sampled_points, axis=0))
+
+    # Concatenate all obstacle points into a single array
+    obstacle_points = np.concatenate(obstacle_points, axis=0)
+
+
+    return wall_positions, charging_port_shape, obstacle_points
 
 
 
@@ -116,11 +166,12 @@ def plot_charging_env(wall_positions, charging_port_shape, ax, plt_show=False):
 
 def plot_and_save_charging_port_env():
     wall_position = np.array([5, 0, 3])
-    wall_size = np.array([1.0, 10, 6])
+    wall_size = np.array([1.0, 8, 6])
     charging_port_position = np.array([5, 0, 3])
     charging_port_size = np.array([1.0, 1, 1])
 
-    wall_positions, charging_port_shape = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size)
+    wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=5)
+
 
     fig = plt.figure(figsize=(10, 10), constrained_layout=True)
     ax = fig.add_axes([0, 0, 1, 1], projection='3d')
@@ -142,7 +193,12 @@ def plot_and_save_charging_port_env():
 
     plot_links_3d(cable_lengths, link_radius, link_length, ax, base_center, base_normal)
 
+    # Plot obstacle points correctly
+    ax.scatter(obstacle_points[:, 0], obstacle_points[:, 1], obstacle_points[:, 2], c='r')
+
     plot_charging_env(wall_positions, charging_port_shape, ax, plt_show = True)
+
+
 
     save_high_res_figure(fig, '3d_charging_port_environment.png')
     plt.close(fig)

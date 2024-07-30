@@ -20,7 +20,7 @@ from evaluate_heatmap import load_learned_csdf
 
 
 
-def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, mode='mppi', env_idx=0, interactive_window = True):
+def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, obstacle_points, mode='mppi', env_idx=0, interactive_window = True):
     # Initialize the parameters for return
     total_time = 0.0
 
@@ -69,10 +69,11 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
     if mode == 'random':
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
 
-    num_steps = 300
-    goal_threshold = 0.4
+    num_steps = 200
+    goal_threshold = 0.3
 
     goal_count = 0
+    goal_reached = False
 
     period = 10
 
@@ -107,10 +108,6 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
 
         print('distance_to_goal:', goal_distance)
-
-
-
-            # for 6link: horizon set to 3/4; other: set to 5
  
 
         #sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
@@ -143,7 +140,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
 
 
-            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, np.array([]), safety_margin)
+            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, obstacle_points, safety_margin)
 
             print('time needed for MPPI:', time.time() - start_time)
 
@@ -163,7 +160,9 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
             ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
 
         else:
-            print("Charging Port Reached!")
+            if not goal_reached:
+                print("Charging Port Reached!")
+                goal_reached = True
 
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
@@ -179,9 +178,10 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos_updated, np.array([]), safety_margin)
 
-            print('time needed for MPPI:', time.time() - start_time)
+            # print('time needed for MPPI:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
+
             selected_end_effectors = []
             for i in range(selected_robot_states.shape[1]):
                 
@@ -196,7 +196,9 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             ax.plot(selected_end_effectors[:, 0], selected_end_effectors[:, 1], selected_end_effectors[:,2], 'b--', linewidth=2, label='Predicted End-Effector Trajectory')
 
-            if np.linalg.norm(end_center - goal_pos_updated) < 0.05:
+
+            if np.linalg.norm(end_center - goal_pos_updated) < 0.1:
+                print('charging complete!')
                 break
 
         # Set the plot limits and labels
@@ -268,11 +270,13 @@ if __name__ == '__main__':
 
     # create env for quantitative statistics
     wall_position = np.array([5, 0, 3])
-    wall_size = np.array([1.0, 10, 6])
+    wall_size = np.array([1.0, 8, 6])
     charging_port_position = np.array([5, 0, 3])
     charging_port_size = np.array([1.0, 1., 1.])
 
-    wall_positions, charging_port_shape = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size)
+    obstacle_pt_unit = 5
+
+    wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=obstacle_pt_unit)
 
     dt = 0.05
     control_modes = ['mppi']
@@ -292,7 +296,7 @@ if __name__ == '__main__':
         robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
 
-        goal_distances, estimated_obstacle_distances = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, mode, env_idx=0, interactive_window=args.interactive_window)
+        goal_distances, estimated_obstacle_distances = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, obstacle_points, mode, env_idx=0, interactive_window=args.interactive_window)
 
         estimated_obstacle_distances = np.array(estimated_obstacle_distances)
 
