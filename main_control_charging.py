@@ -135,12 +135,13 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             # safety margin for point cloud data observations
             safety_margin = 0.1
+            goal_normal = jnp.array([1., 0., 0.]) 
 
             start_time = time.time()
 
 
 
-            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, obstacle_points, safety_margin)
+            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, obstacle_points, safety_margin, goal_normal)
 
             print('time needed for MPPI:', time.time() - start_time)
 

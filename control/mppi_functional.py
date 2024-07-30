@@ -84,7 +84,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
         return lax.fori_loop( 0, samples, body, (U) )
     
     @jit
-    def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation, safety_margin = 0.1):
+    def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation, safety_margin = 0.1, goal_normal = None):
         # Initialize robot_state
         robot_states = jnp.zeros((robot_n, horizon))
         robot_states = robot_states.at[:,0].set(robot_states_init)
@@ -96,10 +96,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
 
         # if dealing with sphere objects (e.g, radius = 0.7), if running the main_sphere, uncomment the following line:
-        # safety_margin = 0.1 + 0.7   
-        # 
-
-        goal_normal = jnp.array([1., 0., 0.])                  
+        # safety_margin = 0.1 + 0.7                    
 
         
         # loop over horizon
@@ -115,8 +112,15 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
             end_center, end_normal, _ = compute_end_circle(robot_state)
 
-            # Compute the distance between the end center and the goal
-            end_center_distance = jnp.linalg.norm(goal - end_center) + jnp.linalg.norm(goal_normal - end_normal)
+            if goal_normal == None:
+
+                # Compute the distance between the end center and the goal
+                end_center_distance = jnp.linalg.norm(goal - end_center) 
+
+            else: 
+
+                # If the goal is a SE(3) pose instead of just a position
+                end_center_distance = jnp.linalg.norm(goal - end_center) + jnp.linalg.norm(goal_normal - end_normal)
 
             #jax.debug.print("🤯 i {index} end_center_distance {x} 🤯, state {state},", index=i, x=end_center_distance, state=robot_state.reshape(1,-1))
 
