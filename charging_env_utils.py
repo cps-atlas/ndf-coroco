@@ -129,17 +129,17 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
 
     wall_positions.extend(left_wall_positions)
 
-    floor_positions = []
+    # floor_positions = []
 
-    # Top rectangle
-    floor_positions.append(np.array([
-        [-1, -4, 0],
-        [-1, 4, 0],
-        [7, 4, 0],
-        [7, -4, 0],
-    ]))
+    # # Top rectangle
+    # floor_positions.append(np.array([
+    #     [-1, -4, 0],
+    #     [-1, 4, 0],
+    #     [7, 4, 0],
+    #     [7, -4, 0],
+    # ]))
 
-    wall_positions.extend(floor_positions)
+    # wall_positions.extend(floor_positions)
 
     obstacle_points = []
     sampled_points = []
@@ -178,9 +178,18 @@ def plot_charging_env(wall_positions, charging_port_shape, ax, plt_show=False):
 
 def plot_and_save_charging_port_env():
     wall_position = np.array([5, 0, 3])
-    wall_size = np.array([1.0, 7, 6])
-    charging_port_position = np.array([5, 0, 3])
-    charging_port_size = np.array([1.0, 1, 1])
+    wall_size = np.array([1.0, 8, 6])
+
+    charging_port_size = np.array([1.0, 1., 1.])
+    # Define the fixed x position for the charging port
+    x_position = wall_position[0]
+    
+    # Generate random y and z positions within the specified ranges
+    y_position = np.random.uniform(-3, 3)
+    z_position = np.random.uniform(1, 5)
+    
+    # Construct the charging port position
+    charging_port_position = np.array([x_position, y_position, z_position])
 
     wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=5)
 

@@ -48,14 +48,12 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     control_bound = 0.3
 
-    cost_state_coeff = 100.0
+    cost_state_coeff = 50.0
 
     use_GPU = True
 
     prediction_horizon = 8
 
-    if NUM_OF_LINKS > 6:
-        prediction_horizon = 8
 
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
     mppi = setup_mppi_controller(learned_CSDF=jax_params, robot_n=2 * robot.num_links, initial_horizon=prediction_horizon,
@@ -70,19 +68,17 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
 
     num_steps = 200
-    goal_threshold = 0.2
+    goal_threshold = 0.25
 
     goal_count = 0
     goal_reached = False
-
-    period = 10
 
     goal_distances = []
     estimated_obstacle_distances = []
 
 
     # Create a new figure and 3D axis for each frame
-    fig = plt.figure(figsize=(8, 8), dpi=150)
+    fig = plt.figure(figsize=(8, 8), dpi=200)
     ax = fig.add_subplot(111, projection='3d')   
 
     frames = [] 
@@ -176,7 +172,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             start_time = time.time()
 
-            goal_pos_updated = goal_pos + np.array([1.3, 0, 0])
+            goal_pos_updated = goal_pos + 1.3 * goal_normal_np
 
             robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos_updated, np.array([]), safety_margin)
 
@@ -189,10 +185,10 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
                 
                 robot_state = selected_robot_states[:,i].reshape(robot.num_links, 2)
 
-                end_center, _, _ = compute_end_circle(robot_state)
+                end_center_mppi, _, _ = compute_end_circle(robot_state)
 
 
-                selected_end_effectors.append(end_center)
+                selected_end_effectors.append(end_center_mppi)
 
             selected_end_effectors = np.array(selected_end_effectors)
 
@@ -201,7 +197,17 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             if np.linalg.norm(end_center - goal_pos_updated) < 0.1:
                 print('charging complete!')
+                # Append the last frame for the freeze duration
+                freeze_duration = 0.8  # or 1 for 1 second
+                fps = int(1 / dt)  # Determine the frame rate
+                num_freeze_frames = int(freeze_duration * fps)
+                last_frame = frames[-1]  # Get the last frame
+
+                for _ in range(num_freeze_frames):
+                    frames.append(last_frame)
                 break
+
+
 
         # Set the plot limits and labels
         ax.set_xlim(-1, 7)
@@ -223,7 +229,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         frames.append(image)
 
         if interactive_window:
-            plt.pause(0.01)  # Add a small pause to allow the plot to update
+            plt.pause(0.02)  # Add a small pause to allow the plot to update
 
 
         # t = total_time % period  # Time within the current period
@@ -251,7 +257,6 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
     # remove the 1st frame
     video_path = os.path.join(result_dir, env_dir, mode_dir, video_name)
     imageio.mimsave(video_path, frames[1:], fps=int(1/dt))
-    # imageio.mimsave(video_path, frames[1:], fps=int(50))
 
     return goal_distances, estimated_obstacle_distances
 
@@ -270,40 +275,43 @@ if __name__ == '__main__':
 
     jax_params = net.params
 
+    num_environments = NUM_ENVIRONMENTS
+
     # create env for quantitative statistics
     wall_position = np.array([5, 0, 3])
     wall_size = np.array([1.0, 8, 6])
-    charging_port_position = np.array([5, 0, 3])
+
     charging_port_size = np.array([1.0, 1., 1.])
-
-    charging_port_normal  = np.array([1., 0., 0.])
-
-    obstacle_pt_unit = 5
-
-    wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=obstacle_pt_unit)
 
     dt = 0.05
     control_modes = ['mppi']
 
 
-    num_trials = 1
+    for i in range(num_environments):
+        # Define the fixed x position for the charging port
+        x_position = wall_position[0]
+        
+        # Generate random y and z positions within the specified ranges
+        y_position = np.random.uniform(-3, 3)
+        z_position = np.random.uniform(1, 5)
+        
+        # Construct the charging port position
+        charging_port_position = np.array([x_position, y_position, z_position])
+
+        charging_port_normal  = np.array([1., 0., 0.])
+
+        obstacle_pt_unit = 5
+
+        wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=obstacle_pt_unit)
 
 
-    for mode in control_modes:
-        print(f"Running trials for control mode: {mode}")
-        success_count = 0
-        collision_count = 0
-        total_time = 0.0
+        for mode in control_modes:
+            print(f"control mode: {mode} in environment {i+1}")
+            success_count = 0
+            collision_count = 0
+            total_time = 0.0
+            # Create a Robot3D instance
+            robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
 
-        # Create a Robot3D instance
-        robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
-
-
-        goal_distances, estimated_obstacle_distances = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, charging_port_normal, obstacle_points, mode, env_idx=0, interactive_window=args.interactive_window)
-
-        estimated_obstacle_distances = np.array(estimated_obstacle_distances)
-
-        # Generate a unique name for the distance plot
-        plot_name = f'env{1}_{mode}_distances.png'
-        plot_path = os.path.join('distance_plots', plot_name)
+            goal_distances, _ = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, charging_port_normal, obstacle_points, mode, env_idx=i, interactive_window=args.interactive_window)

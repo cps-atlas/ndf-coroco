@@ -4,6 +4,8 @@ Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org)
 
 ![4-link](result_videos_cluttered/env1/mppi/link4.gif) ![5-link](result_videos_cluttered/env1/mppi/link5.gif) ![7-link](result_videos_cluttered/env1/mppi/link7.gif)
 
+![4-link](result_videos_sphere/env2/mppi/link4.gif) ![4-link](result_videos_sphere/env3/mppi/link4.gif) ![charger](result_videos_charging/env1/mppi/link4.gif)
+
 This repository contains the official implementation for the paper "Neural Configuration Distance Function for Continuum Robot Control".
 
 If you find our work useful, please consider citing our paper:

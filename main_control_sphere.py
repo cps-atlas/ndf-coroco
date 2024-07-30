@@ -23,7 +23,7 @@ from robot_config import *
 from evaluate_heatmap import load_learned_csdf
 
 
-def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, interactive_window = True):
+def main(jax_params, env, robot, dt, mode='random', env_idx=0, interactive_window = True):
     # Initialize the parameters for return
     success_count = 0
     collision_count = 0
@@ -33,7 +33,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
     result_dir = 'result_videos_sphere'
     env_dir = f'env{env_idx+1}'
     mode_dir = mode
-    video_name = f'trial{trial_idx+1}.mp4'
+    video_name = f'Link{NUM_OF_LINKS}.mp4'
 
     os.makedirs(os.path.join(result_dir, env_dir, mode_dir), exist_ok=True)
 
@@ -73,7 +73,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
     estimated_obstacle_distances = []
 
 
-    fig = plt.figure(figsize=(8, 8), dpi=150)
+    fig = plt.figure(figsize=(8, 8), dpi=200)
     ax = fig.add_subplot(111, projection='3d')
 
     frames = []
@@ -97,8 +97,6 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
         goal_distance = np.linalg.norm(end_center - env.goal_point)
 
         goal_distances.append(goal_distance)
-
-        print('distance_to_goal:', goal_distance)
 
 
         sdf_val = evaluate_model(jax_params, robot.state, env.obstacle_positions)
@@ -168,9 +166,18 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
 
         total_time += dt
 
+        # Check if the goal is reached
         if goal_distance < goal_threshold:
             print("Goal Reached!")
             success_count = 1
+            # Append the last frame for the freeze duration
+            freeze_duration = 0.8  # or 1 for 1 second
+            fps = int(1 / dt)  # Determine the frame rate
+            num_freeze_frames = int(freeze_duration * fps)
+            last_frame = frames[-1]  # Get the last frame
+
+            for _ in range(num_freeze_frames):
+                frames.append(last_frame)
             break
 
     if interactive_window:
@@ -200,7 +207,6 @@ if __name__ == '__main__':
 
     # create env for quantitative statistics
     num_environments = NUM_ENVIRONMENTS
-    num_trials = NUM_TRAILS
     xlim = [-4, 4]
     ylim = [-4, 4]
     zlim = [-1, 6.0]
@@ -252,33 +258,33 @@ if __name__ == '__main__':
             collision_count = 0
             total_time = 0.0
 
-            for j in range(num_trials):
-                # Create a Robot3D instance
-                robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
-                # Create the operation environment
-                env = Environment(obstacle_positions=obstacle_positions, obstacle_velocities=obstacle_velocities, obst_radius=obst_radius, goal_point=goal_point, period = obst_period)
+            # Create a Robot3D instance
+            robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
-                trial_success, trial_collision, trial_time, goal_distances, estimated_obstacle_distances = main(jax_params, env, robot, dt, mode, env_idx=i, trial_idx=j, interactive_window=args.interactive_window)
-                success_count += trial_success
-                collision_count += trial_collision
-                total_time += trial_time
+            # Create the operation environment
+            env = Environment(obstacle_positions=obstacle_positions, obstacle_velocities=obstacle_velocities, obst_radius=obst_radius, goal_point=goal_point, period = obst_period)
 
-                estimated_obstacle_distances = np.array(estimated_obstacle_distances)
+            trial_success, trial_collision, trial_time, goal_distances, estimated_obstacle_distances = main(jax_params, env, robot, dt, mode, env_idx=i, interactive_window=args.interactive_window)
+            success_count += trial_success
+            collision_count += trial_collision
+            total_time += trial_time
 
-                # Generate a unique name for the distance plot
-                plot_name = f'env{i+1}_{mode}_trial{j+1}_distances.png'
-                plot_path = os.path.join('distance_plots', plot_name)
-                
-                # Save the distance plot with the unique name
-                plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt, save_path=plot_path)
+            estimated_obstacle_distances = np.array(estimated_obstacle_distances)
 
-            success_rate = success_count / num_trials
-            collision_rate = collision_count / num_trials
-            avg_time = total_time / success_count if success_count > 0 else np.inf
+            # Generate a unique name for the distance plot
+            plot_name = f'env{i+1}_{mode}_distances.png'
+            plot_path = os.path.join('distance_plots', plot_name)
+            
+            # Save the distance plot with the unique name
+            plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt, save_path=plot_path)
 
-            print(f"Control mode: {mode}")
-            print(f"Success rate: {success_rate:.2f}")
-            print(f"Collision rate: {collision_rate:.2f}")
-            print(f"Average time to reach goal: {avg_time:.2f} seconds")
-            print("---")
+        success_rate = success_count 
+        collision_rate = collision_count 
+        avg_time = total_time / success_count if success_count > 0 else np.inf
+
+        print(f"Control mode: {mode}")
+        print(f"Success rate: {success_rate:.2f}")
+        print(f"Collision rate: {collision_rate:.2f}")
+        print(f"Average time to reach goal: {avg_time:.2f} seconds")
+        print("---")
