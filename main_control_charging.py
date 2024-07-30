@@ -20,7 +20,7 @@ from evaluate_heatmap import load_learned_csdf
 
 
 
-def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, obstacle_points, mode='mppi', env_idx=0, interactive_window = True):
+def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, port_normal, obstacle_points, mode='mppi', env_idx=0, interactive_window = True):
     # Initialize the parameters for return
     total_time = 0.0
 
@@ -50,7 +50,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     cost_state_coeff = 100.0
 
-    use_GPU = False
+    use_GPU = True
 
     prediction_horizon = 8
 
@@ -70,7 +70,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
 
     num_steps = 200
-    goal_threshold = 0.3
+    goal_threshold = 0.2
 
     goal_count = 0
     goal_reached = False
@@ -97,12 +97,13 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         plot_charging_env(wall_positions, charging_port_shape, ax)
 
 
-        end_center, _, _ = compute_end_circle(robot.state)
+        end_center, end_normal, _ = compute_end_circle(robot.state)
 
         goal_pos = charging_port_position - np.array([1, 0, 0])
 
         # Calculate the distance between the end center and the goal point
-        goal_distance = np.linalg.norm(end_center - goal_pos)
+        goal_normal_np = port_normal
+        goal_distance = np.linalg.norm(end_center - goal_pos) + np.linalg.norm(end_normal - goal_normal_np)
 
         goal_distances.append(goal_distance)
 
@@ -135,7 +136,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             # safety margin for point cloud data observations
             safety_margin = 0.1
-            goal_normal = jnp.array([1., 0., 0.]) 
+            goal_normal = jnp.array(goal_normal_np) 
 
             start_time = time.time()
 
@@ -203,9 +204,9 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
                 break
 
         # Set the plot limits and labels
-        ax.set_xlim(-3, 9)
-        ax.set_ylim(-6, 6)
-        ax.set_zlim(-2, 10)
+        ax.set_xlim(-1, 7)
+        ax.set_ylim(-4, 4)
+        ax.set_zlim(0, 8)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
@@ -275,6 +276,8 @@ if __name__ == '__main__':
     charging_port_position = np.array([5, 0, 3])
     charging_port_size = np.array([1.0, 1., 1.])
 
+    charging_port_normal  = np.array([1., 0., 0.])
+
     obstacle_pt_unit = 5
 
     wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=obstacle_pt_unit)
@@ -297,7 +300,7 @@ if __name__ == '__main__':
         robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
 
-        goal_distances, estimated_obstacle_distances = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, obstacle_points, mode, env_idx=0, interactive_window=args.interactive_window)
+        goal_distances, estimated_obstacle_distances = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, charging_port_normal, obstacle_points, mode, env_idx=0, interactive_window=args.interactive_window)
 
         estimated_obstacle_distances = np.array(estimated_obstacle_distances)
 

@@ -4,12 +4,6 @@ import torch.nn as nn
 from torch.nn.utils import clip_grad_norm_
 
 
-import jax
-import jax.numpy as jnp
-from flax import linen as jnn
-from flax.training import train_state
-import optax
-
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,53 +12,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if no GPU
 '''
 # jax.config.update('jax_platform_name', 'cpu')
-
-'''
-JAX training without eikonal constraint
-'''
-
-def train_jax_3d(net, dataset, num_epochs, learning_rate, batch_size, loss_threshold=1e-4):
-    def loss_fn(params, batch):
-        inputs, distances = batch
-        pred_distances = net.apply(params, inputs)
-        loss = jnp.mean((pred_distances - distances) ** 2)
-        return loss
-    
-    @jax.jit
-    def train_step(state, batch):
-        loss, grads = jax.value_and_grad(loss_fn)(state.params, batch)
-        state = state.apply_gradients(grads=grads)
-        return state, loss
-
-    # Optimizer
-    tx = optax.adam(learning_rate=learning_rate)
-
-
-
-    state = train_state.TrainState.create(
-        apply_fn=net.apply, params=net.init(jax.random.PRNGKey(0), jnp.zeros((1, INPUT_SIZE))), tx=tx
-    )
-
-    num_batches = len(dataset) // batch_size
-    for epoch in range(num_epochs):
-
-        epoch_loss = 0.0
-        
-        for i in range(num_batches):
-            batch = dataset[i * batch_size: (i + 1) * batch_size]
-            
-            state, loss = train_step(state, batch)
-            epoch_loss += loss
-        
-        epoch_loss /= num_batches
-
-        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}")
-        
-        if epoch_loss < loss_threshold:
-            print(f"Reached loss threshold of {loss_threshold}. Stopping training.")
-            break
-    
-    return state.params
 
 
 '''

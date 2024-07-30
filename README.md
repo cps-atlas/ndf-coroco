@@ -11,6 +11,12 @@ If you find our work useful, please consider citing our paper:
 @article{}
 ```
 
+<div style="display: flex; justify-content: space-around;">
+    <img src="results_videos_cluttered/link4.gif" alt="Simulation 1" style="width: 33%;"/>
+    <img src="results_videos_cluttered/link5.gif" alt="Simulation 2" style="width: 33%;"/>
+    <img src="results_videos_cluttered/link7.gif" alt="Simulation 3" style="width: 33%;"/>
+</div>
+
 # 🚀 Quick Start
 Clone the repository: 
 
@@ -78,7 +84,7 @@ python main_control_sphere.py --no_interactive
 
 ## 📊 Results
 
-Simulation videos: results_videos_sphere/ or results_videos_cluttered/  
+Simulation videos: results_videos_sphere/, results_videos_cluttered/ , and results_videos_charging/ . 
 
 Distance plots: distance_plots/
 

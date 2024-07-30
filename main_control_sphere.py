@@ -121,7 +121,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, trial_idx=0, inte
             safety_margin = 0.1 + env.obst_radius
 
 
-            _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions, safety_margin)
+            _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions, safety_margin, None)
 
 
             # Plot the trajectory of the end-effector along the selected states

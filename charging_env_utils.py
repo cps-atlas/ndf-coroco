@@ -43,12 +43,12 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
             [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
         ]),
         # Right face
-        # np.array([
-        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
-        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
-        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
-        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
-        # ]),
+        np.array([
+            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+        ]),
     ]
 
     pos = charging_port_position
@@ -129,6 +129,18 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
 
     wall_positions.extend(left_wall_positions)
 
+    floor_positions = []
+
+    # Top rectangle
+    floor_positions.append(np.array([
+        [-1, -4, 0],
+        [-1, 4, 0],
+        [7, 4, 0],
+        [7, -4, 0],
+    ]))
+
+    wall_positions.extend(floor_positions)
+
     obstacle_points = []
     sampled_points = []
     for face in left_wall_positions:
@@ -150,7 +162,7 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
 
 def plot_charging_env(wall_positions, charging_port_shape, ax, plt_show=False):
     for wall in wall_positions:
-        ax.add_collection3d(Poly3DCollection([wall], facecolors='gray', linewidths=1, edgecolors='k', alpha=0.8))
+        ax.add_collection3d(Poly3DCollection([wall], facecolors='gray', linewidths=1, edgecolors='k', alpha=0.3))
 
     for face in charging_port_shape:
         ax.add_collection3d(Poly3DCollection([face], facecolors='green', linewidths=1, edgecolors='k', alpha=0.8))
@@ -166,7 +178,7 @@ def plot_charging_env(wall_positions, charging_port_shape, ax, plt_show=False):
 
 def plot_and_save_charging_port_env():
     wall_position = np.array([5, 0, 3])
-    wall_size = np.array([1.0, 8, 6])
+    wall_size = np.array([1.0, 7, 6])
     charging_port_position = np.array([5, 0, 3])
     charging_port_size = np.array([1.0, 1, 1])
 
