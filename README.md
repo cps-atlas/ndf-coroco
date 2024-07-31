@@ -36,16 +36,17 @@ conda create -n environment.yaml
 conda activate soft_neural_cedf
 ```
 
-Note: The MPPI algorithm is computationally expensive. For real-time performance, we recommend using an NVIDIA RTX 3090 GPU or better. If no GPU is available, uncomment the following line in the relevant scripts:
-
-jax.config.update('jax_platform_name', 'cpu')
-
 
 ## 🧠 Neural CEDF Training
 
 To train the neural CEDF, run the file:
 ```
 main_cedf.py
+```
+
+To evaluate and visualize the learned CEDF model, run the file: 
+```
+evaluate_heatmap.py
 ```
 
 *   Adjust training parameters in training/config_3D.py
@@ -61,6 +62,11 @@ to prepare the dataset for the customized continuum robot link.
 
 
 ## 🤖 Continuum Robot Navigation Simulation
+
+Note: The MPPI algorithm is computationally expensive. For real-time performance, we recommend using an NVIDIA RTX 3090 GPU or better. If no GPU is available, uncomment the following line in the relevant scripts:
+
+jax.config.update('jax_platform_name', 'cpu')
+
 
 Customize simulation settings in robot_config.py: 
 *  Number of robot links
