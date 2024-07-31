@@ -47,8 +47,8 @@ def prepare_training_data_3d_single_link(num_configs, length_range, link_radius,
         state = np.array([l1, l2])
 
         # Calculate theta and phi for the link
-        edge_lengths = compute_3rd_edge_length(state, link_length)
-        theta, phi = calculate_link_parameters(edge_lengths, link_radius)
+        edge_lengths = compute_3rd_edge_length(state)
+        theta, phi = calculate_link_parameters(edge_lengths)
 
         # Generate surface points for the link
         surface_points_list = compute_surface_points([state], link_radius, link_length, num_points_per_circle=40)
@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
     visualize_dataset_3d_single_link(dataset)
     # Save the entire dataset to a single file
-    with open('dataset_3d_single_link_large.pickle', 'wb') as f:
+    with open('training_data/dataset_3d_single_link.pickle', 'wb') as f:
         pickle.dump(dataset, f)
 
     
