@@ -35,11 +35,9 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     # Set up MPPI controller
     
-    # for 6-link: horizon = 6; sample = 1000; 5-link: horizon = 24, sample = 800; 4-link: horizon = 18, 800 samples
-    # prediction_horizon >= 2
 
 
-    num_samples = 1000
+    num_samples = 800
     costs_lambda = 0.02
     cost_goal_coeff = 12.0
     cost_safety_coeff = 1.1
@@ -52,7 +50,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     use_GPU = True
 
-    prediction_horizon = 8
+    prediction_horizon = 10
 
 
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
@@ -104,7 +102,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         goal_distances.append(goal_distance)
 
 
-        print('distance_to_goal:', goal_distance)
+        # print('distance_to_goal:', goal_distance)
  
 
         #sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
@@ -138,9 +136,9 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
 
 
-            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, obstacle_points, safety_margin, goal_normal)
+            _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, obstacle_points, safety_margin, goal_normal)
 
-            print('time needed for MPPI:', time.time() - start_time)
+            # print('time needed for MPPI:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
             selected_end_effectors = []
@@ -279,7 +277,7 @@ if __name__ == '__main__':
 
     # create env for quantitative statistics
     wall_position = np.array([5, 0, 3])
-    wall_size = np.array([1.0, 8, 6])
+    wall_size = np.array([1.0, 7, 6])
 
     charging_port_size = np.array([1.0, 1., 1.])
 

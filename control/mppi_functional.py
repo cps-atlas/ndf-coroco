@@ -136,6 +136,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
                 cost_sample = cost_sample + cost_safety_coeff / jnp.max(jnp.array([jnp.min(csdf_distances)- safety_margin, 0.01]))
 
 
+
             # Compute the state constraint violation cost
             length_1 = robot_state.squeeze()[:, 0]
             length_2 = robot_state.squeeze()[:, 1]

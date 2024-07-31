@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 import torch
 from network.csdf_net import CSDFNet, CSDFNet_JAX
-from training.csdf_training_3D import train_3d, train_with_eikonal_3d, train_jax_3d
+from training.csdf_training_3D import train_3d, train_with_eikonal_3d
 from training.config_3D import *
 
 from training_data.dataset import SoftRobotDataset, SoftRobotDataset_JAX
@@ -27,8 +27,11 @@ def grid_search(train_dataset, val_dataset, device):
     # Define the hyperparameter search space
     hidden_sizes = [16, 24, 32]
     num_layers = [2, 3, 4]
-    learning_rates = [0.001, 0.003, 0.005, 0.01]
-    batch_sizes = [128, 256]
+    # learning_rates = [0.001, 0.003, 0.005, 0.01]
+    # batch_sizes = [128, 256]
+
+    learning_rates = [0.003]
+    batch_sizes = [256]
 
     best_val_loss = float('inf')
     best_hyperparams = None
@@ -70,7 +73,7 @@ following is training with pytorch
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
 
-    with open('training_data/dataset_3d_single_link_large.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link.pickle', 'rb') as f:
         training_data = pickle.load(f)
 
 
@@ -97,11 +100,11 @@ def main_torch(train_eikonal=False):
     # Train the model
     if train_eikonal:
         print('training with eikonal start!')
-        # best_model, best_hyperparams = grid_search(train_dataset, val_dataset, device)
+        best_model, best_hyperparams = grid_search(train_dataset, val_dataset, device)
 
-        net, _ = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05)
+        # net, _ = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05)
         # Save the trained model with Eikonal regularization
-        torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_4_16_new.pth")
+        # torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_train_4_16_new.pth")
     else:
         print('training without eikonal start!')
         net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4)

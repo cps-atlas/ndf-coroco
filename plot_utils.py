@@ -389,6 +389,7 @@ def plot_and_save_realsitic_env():
     sphere_points = generate_sphere_points(sphere_positions, obst_radius=sphere_radius)
 
     obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
+
     
     fig = plt.figure(figsize=(10, 10), constrained_layout=True)
     ax = fig.add_axes([0, 0, 1, 1], projection='3d')

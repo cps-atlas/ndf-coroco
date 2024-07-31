@@ -35,7 +35,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, interactive_windo
     mode_dir = mode
     video_name = f'Link{NUM_OF_LINKS}.mp4'
 
-    os.makedirs(os.path.join(result_dir, env_dir, mode_dir), exist_ok=True)
+    #os.makedirs(os.path.join(result_dir, env_dir, mode_dir), exist_ok=True)
 
 
     # Set up MPPI controller
@@ -118,10 +118,10 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, interactive_windo
             # safety margin for sphere dynamical obstacles
             safety_margin = 0.1 + env.obst_radius
 
-            # start_time = time.time()
+            start_time = time.time()
             _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions, safety_margin, None)
 
-            # print('mppi_solver_time:', time.time() - start_time)
+            print('mppi_solver_time:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
             selected_end_effectors = []
@@ -183,8 +183,8 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, interactive_windo
 
     if interactive_window:
         plt.show()    
-    video_path = os.path.join(result_dir, env_dir, mode_dir, video_name)
-    imageio.mimsave(video_path, frames[1:], fps=int(1/dt))
+    #video_path = os.path.join(result_dir, env_dir, mode_dir, video_name)
+    #imageio.mimsave(video_path, frames[1:], fps=int(1/dt))
 
     return success_count, total_time, goal_distances, estimated_obstacle_distances
 
@@ -196,6 +196,9 @@ args = parser.parse_args()
 if __name__ == '__main__':
 
     model_type = 'jax'
+
+    #trained_model = "trained_models/torch_models_3d/eikonal_train.pth"
+    #trained_model = "trained_models/torch_models_3d/test_1.pth"
 
     trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
@@ -279,15 +282,15 @@ if __name__ == '__main__':
             plot_path = os.path.join('distance_plots', plot_name)
             
             # Save the distance plot with the unique name
-            plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt, save_path=plot_path)
+            # plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt, save_path=plot_path)
 
 
-# After all environments are processed, print some statistics
-# success_rate = np.sum(success_counts) / num_environments * 100
-# avg_time = np.mean(reaching_times)
-# std_dev_time = np.std(reaching_times)
+# After all environments are processed, print the overall statistics
+success_rate = np.sum(success_counts) / num_environments * 100
+avg_time = np.mean(reaching_times)
+std_dev_time = np.std(reaching_times)
 
-# print("Overall Summary:")
-# print(f"Overall success rate: {success_rate:.2f}%")
-# print(f"Average time to reach goal: {avg_time:.2f} seconds")
-# print(f"Standard deviation of time to reach goal: {std_dev_time:.2f} seconds")
+print("Overall Summary:")
+print(f"Overall success rate: {success_rate:.2f}%")
+print(f"Average time to reach goal: {avg_time:.2f} seconds")
+print(f"Standard deviation of time to reach goal: {std_dev_time:.2f} seconds")

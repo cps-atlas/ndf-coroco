@@ -77,12 +77,6 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
     goal_distances = []
     estimated_obstacle_distances = []
 
-    # switch_count = 0
-    # switch_distance = 0.8
-    # if NUM_OF_LINKS == 4:
-    #     switch_distance = 2.0
-
-
     # Create a new figure and 3D axis for each frame
     fig = plt.figure(figsize=(8, 8), dpi=200)
     ax = fig.add_subplot(111, projection='3d')   
@@ -107,17 +101,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         goal_distances.append(goal_distance)
 
 
-        print('distance_to_goal:', goal_distance)
-
-
-
-            # for 6link: horizon set to 3/4; other: set to 5
- 
-
-        #sdf_val, rbt_grad, sdf_grads = evaluate_model(jax_params, robot_config, robot.state, robot.link_radius, robot.link_length, env.obstacle_positions)
-
-        #estimated_obstacle_distances.append(sdf_val)
-        # print('estimated_obst_distances:', sdf_val)
+        #print('distance_to_goal:', goal_distance)
 
 
         if mode == 'random':
@@ -139,13 +123,13 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             # safety margin for point cloud data observations
             safety_margin = 0.1
 
-            start_time = time.time()
+            # start_time = time.time()
 
 
 
-            robot_sampled_states, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points, safety_margin)
+            _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points, safety_margin)
 
-            print('time needed for MPPI:', time.time() - start_time)
+            # print('time needed for MPPI:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
             selected_end_effectors = []
@@ -206,6 +190,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
         # Check if the goal is reached
         if goal_distance < goal_threshold:
             print("Goal Reached!")
+            print("time step needed:", step)
             # Append the last frame for the freeze duration
             freeze_duration = 0.8  # or 1 for 1 second
             fps = int(1 / dt)  # Determine the frame rate
@@ -248,13 +233,11 @@ if __name__ == '__main__':
     obstacle_positions = [
         np.array([2.5, 0, 5]),
         np.array([2.5, 0, 0]),
-        #np.array([1, -4, 3]), 
         np.array([5.3, 0, 2])
     ]
     obstacle_sizes = [
         np.array([1, 4.8, 3]),
         np.array([1, 5, 2]),
-        #np.array([3, 2, 4]),
         np.array([2., 5, 1])
     ]
 
@@ -282,15 +265,9 @@ if __name__ == '__main__':
     control_modes = ['mppi']
 
 
-    num_trials = 1
-
 
     for mode in control_modes:
         print(f"Running trials for control mode: {mode}")
-        success_count = 0
-        collision_count = 0
-        total_time = 0.0
-
 
         # Create a Robot3D instance
         robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
@@ -298,8 +275,3 @@ if __name__ == '__main__':
 
         goal_distances, estimated_obstacle_distances = main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_position, robot, dt, sphere_positions, sphere_radius, sphere_velocities, mode, env_idx=0, interactive_window=args.interactive_window)
 
-        estimated_obstacle_distances = np.array(estimated_obstacle_distances)
-
-        # Generate a unique name for the distance plot
-        plot_name = f'env{1}_{mode}_distances.png'
-        plot_path = os.path.join('distance_plots', plot_name)
