@@ -68,14 +68,6 @@ Note: The MPPI algorithm is computationally expensive. For real-time performance
 jax.config.update('jax_platform_name', 'cpu')
 
 
-Customize simulation settings in robot_config.py: 
-*  Number of robot links
-*  Environment details (obstacles, number of simulated environments, ...)
-
-
-The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/eikonal_4_16.pth
-
-
 1. Dynamic Environment with Multiple Spheres, run the file
 ```
 main_control_sphere.py
@@ -95,6 +87,13 @@ Add --no_interactive flag to disable the interactive window:
 ```
 python main_control_sphere.py --no_interactive
 ```
+
+Customize simulation settings in robot_config.py: 
+*  Number of robot links
+*  Environment details (obstacles, number of simulated environments, ...)
+
+
+The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/eikonal_4_16.pth
 
 ## 📊 Results
 
