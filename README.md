@@ -2,10 +2,6 @@ Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org)
 ===========================================
 
 
-<!-- ![4-link](result_videos_cluttered/env1/mppi/link4.gif) ![5-link](result_videos_cluttered/env1/mppi/link5.gif) ![7-link](result_videos_cluttered/env1/mppi/link7.gif)
-
-![4-link](result_videos_sphere/env2/mppi/link4.gif) ![4-link](result_videos_sphere/env3/mppi/link4.gif) ![charger](result_videos_charging/env1/mppi/link4.gif) -->
-
 |   |   |   |
 |:---:|:---:|:---:|
 | ![](result_videos_cluttered/env1/mppi/link4.gif) | ![](result_videos_cluttered/env1/mppi/link5.gif) | ![](result_videos_cluttered/env1/mppi/link7.gif) |
@@ -90,7 +86,7 @@ python main_control_sphere.py --no_interactive
 
 Customize simulation settings in robot_config.py: 
 *  Number of robot links
-*  Environment details (obstacles, number of simulated environments, ...)
+*  Environment details (number of spheres, number of environments, ...)
 
 
 The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/eikonal_4_16.pth
