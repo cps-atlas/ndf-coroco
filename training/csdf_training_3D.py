@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from torch.nn.utils import clip_grad_norm_
+import numpy as np
 
 
 import os
@@ -113,20 +114,33 @@ def train_with_eikonal_3d(net, dataloader, val_dataloader, num_epochs, learning_
         epoch_eikonal_loss = running_eikonal_loss / len(dataloader)
         if (epoch + 1) % 5 == 0:
             print(f"Epoch [{epoch+1}/{num_epochs}], Distance Loss: {epoch_distance_loss:.4f}, Eikonal Loss: {epoch_eikonal_loss:.4f}")
-
+            
             # Evaluate the model on the validation set
             net.eval()
             with torch.no_grad():
-                val_loss = 0.0
+                predicted_distances = []
+                true_distances = []
                 for val_inputs, val_targets in val_dataloader:
                     val_inputs, val_targets = val_inputs.to(device), val_targets.to(device)
                     val_outputs = net(val_inputs).squeeze()
-                    val_loss += criterion(val_outputs, val_targets).item()
-                val_loss /= len(val_dataloader)
-                print(f"Validation Loss: {val_loss:.4f}")
-
+                    
+                    # Store the predicted and true distances
+                    predicted_distances.extend(val_outputs.cpu().numpy())
+                    true_distances.extend(val_targets.cpu().numpy())
+                
+                # Calculate the absolute differences between predicted and true distances
+                differences = np.array(predicted_distances) - np.array(true_distances)
+                
+                # Calculate MAE/MAD and RMSE
+                mae = np.mean(np.abs(differences))
+                rmse = np.sqrt(np.mean(differences**2))
+                
+                # Print MAE/MAD and RMSE
+                print(f"Validation MAE/MAD: {mae:.4f}")
+                print(f"Validation RMSE: {rmse:.4f}")
+            
             # Check if both training loss and validation loss are smaller than the threshold
-            if epoch_distance_loss < loss_threshold and val_loss < loss_threshold:
+            if epoch_distance_loss < loss_threshold and mae < loss_threshold:
                 print(f"Training stopped early at epoch {epoch+1} as both losses are below the threshold.")
                 break
 
