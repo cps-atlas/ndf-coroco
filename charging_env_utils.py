@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-from plot_utils import save_high_res_figure, sample_points_on_face
+from plot_utils import save_high_res_figure, sample_points_on_face, generate_sphere_points
 from utils_3d import *
 from robot_config import *
 
@@ -43,12 +43,12 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
             [corridor_pos[0] - corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
         ]),
         # Right face
-        np.array([
-            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
-            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
-            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
-            [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
-        ]),
+        # np.array([
+        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+        #     [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+        # ]),
     ]
 
     pos = charging_port_position
@@ -143,7 +143,7 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
 
     obstacle_points = []
     sampled_points = []
-    for face in left_wall_positions:
+    for face in wall_positions:
         face_points = sample_points_on_face(face, obst_points_per_unit)
             
         sampled_points.append(face_points)
@@ -154,18 +154,45 @@ def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_pos
     # Concatenate all obstacle points into a single array
     obstacle_points = np.concatenate(obstacle_points, axis=0)
 
+    # append right face
+
+    wall_positions_right = [
+        np.array([
+        [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+        [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] - corridor_size[2] / 2],
+        [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] + corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+        [corridor_pos[0] + corridor_size[0] / 2, corridor_pos[1] - corridor_size[1] / 2, corridor_pos[2] + corridor_size[2] / 2],
+    ])]
+
+    wall_positions.extend(wall_positions_right)
+
 
     return wall_positions, charging_port_shape, obstacle_points
 
 
 
 
-def plot_charging_env(wall_positions, charging_port_shape, ax, plt_show=False):
+def plot_charging_env(wall_positions, charging_port_shape, sphere_positions, sphere_radius, ax, plt_show=False):
     for wall in wall_positions:
         ax.add_collection3d(Poly3DCollection([wall], facecolors='gray', linewidths=1, edgecolors='k', alpha=0.3))
 
     for face in charging_port_shape:
         ax.add_collection3d(Poly3DCollection([face], facecolors='green', linewidths=1, edgecolors='k', alpha=0.8))
+
+    obstacle_plots = []
+    for i, sphere_pos in enumerate(sphere_positions):
+        # Create a sphere
+        u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:10j]
+        x = sphere_radius * np.cos(u) * np.sin(v) + sphere_pos[0]
+        y = sphere_radius * np.sin(u) * np.sin(v) + sphere_pos[1]
+        z = sphere_radius * np.cos(v) + sphere_pos[2]
+
+        # Plot the sphere
+        sphere = ax.plot_surface(x, y, z, color='red', alpha=0.6)
+
+        if i == 0:
+            obstacle_plot = ax.scatter([sphere_pos[0]], [sphere_pos[1]], [sphere_pos[2]], color='red', s=100, label='Obstacles')
+            obstacle_plots.append(obstacle_plot)
 
     ax.set_axis_off()
     ax.grid(False)
@@ -194,6 +221,30 @@ def plot_and_save_charging_port_env():
     wall_positions, charging_port_shape, obstacle_points = generate_charging_port_env_3d(wall_position, wall_size, charging_port_position, charging_port_size, obst_points_per_unit=5)
 
 
+
+    # Generate dynamic spheres
+    sphere_positions = np.array([
+        np.array([3.0, -4.0, 4.5]),  # Sphere 1 position
+        np.array([3.0, -4.0, 3.5]),   # Sphere 2 position
+        np.array([3.0, -4.0, 2.5]),   # Sphere 3 position
+        np.array([3.0, -4.0, 1.5]),   # Sphere 3 position
+        np.array([3.0, -4.0, 0.5])   # Sphere 3 position
+    ])
+    sphere_velocities = np.array([
+        np.array([0.0, 1.0, 0.0]),  # Sphere 1 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 1 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, 1.0, 0.0])  # Sphere 2 velocity
+    ])
+
+    
+    sphere_radius = 0.5
+
+    sphere_points = generate_sphere_points(sphere_positions, obst_radius=sphere_radius)
+
+    obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
+
     fig = plt.figure(figsize=(10, 10), constrained_layout=True)
     ax = fig.add_axes([0, 0, 1, 1], projection='3d')
 
@@ -217,7 +268,7 @@ def plot_and_save_charging_port_env():
     # Plot obstacle points correctly
     ax.scatter(obstacle_points[:, 0], obstacle_points[:, 1], obstacle_points[:, 2], c='r')
 
-    plot_charging_env(wall_positions, charging_port_shape, ax, plt_show = True)
+    plot_charging_env(wall_positions, charging_port_shape, sphere_positions, sphere_radius, ax, plt_show = True)
 
 
 

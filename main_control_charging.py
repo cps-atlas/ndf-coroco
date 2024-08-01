@@ -20,7 +20,7 @@ from evaluate_heatmap import load_learned_csdf
 
 
 
-def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, port_normal, obstacle_points, mode='mppi', env_idx=0, interactive_window = True):
+def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, port_normal, obstacle_points, sphere_positions, sphere_radius, sphere_velocities, mode='mppi', env_idx=0, interactive_window = True):
     # Initialize the parameters for return
     total_time = 0.0
 
@@ -50,7 +50,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
     use_GPU = True
 
-    prediction_horizon = 10
+    prediction_horizon = 15
 
 
     U = 0.0 * jnp.ones((prediction_horizon, 2 * robot.num_links))
@@ -65,8 +65,10 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
     if mode == 'random':
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
 
-    num_steps = 200
+    num_steps = 400
     goal_threshold = 0.25
+
+    period = 16
 
     goal_count = 0
     goal_reached = False
@@ -88,7 +90,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
         # Plot the links
         plot_links_3d(robot.state, robot.link_radius, robot.link_length, ax)
 
-        plot_charging_env(wall_positions, charging_port_shape, ax)
+        plot_charging_env(wall_positions, charging_port_shape, sphere_positions, sphere_radius, ax)
 
 
         end_center, end_normal, _ = compute_end_circle(robot.state)
@@ -126,6 +128,10 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
 
+            sphere_points = generate_sphere_points(sphere_positions, obst_radius=sphere_radius)
+
+            all_obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
+
 
 
             # safety margin for point cloud data observations
@@ -136,7 +142,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
 
 
-            _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, obstacle_points, safety_margin, goal_normal)
+            _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_pos, all_obstacle_points, safety_margin, goal_normal)
 
             # print('time needed for MPPI:', time.time() - start_time)
 
@@ -162,6 +168,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
 
             key = jax.random.PRNGKey(step)
             key, subkey = jax.random.split(key)
+
 
 
 
@@ -230,17 +237,17 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
             plt.pause(0.02)  # Add a small pause to allow the plot to update
 
 
-        # t = total_time % period  # Time within the current period
+        t = total_time % period  # Time within the current period
         
-        # # Calculate the velocity based on the current time in the period
-        # if t < period / 2:
-        #     # First half of the period: move in the initial direction
-        #     obstacle_velocities = sphere_velocities
-        # else:
-        #     # Second half of the period: move in the opposite direction
-        #     obstacle_velocities = -sphere_velocities
+        # Calculate the velocity based on the current time in the period
+        if t < period / 2:
+            # First half of the period: move in the initial direction
+            obstacle_velocities = sphere_velocities
+        else:
+            # Second half of the period: move in the opposite direction
+            obstacle_velocities = -sphere_velocities
         
-        # sphere_positions += obstacle_velocities * dt
+        sphere_positions += obstacle_velocities * dt
 
         # Check if the goal is reached
 
@@ -284,6 +291,35 @@ if __name__ == '__main__':
     dt = 0.05
     control_modes = ['mppi']
 
+    # Generate dynamic spheres
+    sphere_positions = np.array([
+        np.array([3.0, -4.0, 4.5]),  # Sphere 1 position
+        np.array([3.0, -4.0, 3.5]),   # Sphere 2 position
+        np.array([3.0, -4.0, 2.5]),   # Sphere 3 position
+        np.array([3.0, -4.0, 1.5]),   # Sphere 3 position
+        np.array([3.0, -4.0, 0.5]),   # Sphere 3 position
+        np.array([2.0, 4.0, 4.5]),  # Sphere 1 position
+        np.array([2.0, 4.0, 3.5]),   # Sphere 2 position
+        np.array([2.0, 4.0, 2.5]),   # Sphere 3 position
+        np.array([2.0, 4.0, 1.5]),   # Sphere 3 position
+        np.array([2.0, 4.0, 0.5])   # Sphere 3 position
+    ])
+    sphere_velocities = np.array([
+        np.array([0.0, 1.0, 0.0]),  # Sphere 1 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 1 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, -1.0, 0.0]),  # Sphere 1 velocity
+        np.array([0.0, -1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, -1.0, 0.0]),  # Sphere 1 velocity
+        np.array([0.0, -1.0, 0.0]),  # Sphere 2 velocity
+        np.array([0.0, -1.0, 0.0])  # Sphere 2 velocity
+    ])
+
+    sphere_radius = 0.5
+
+
 
     for i in range(num_environments):
         # Define the fixed x position for the charging port
@@ -312,4 +348,4 @@ if __name__ == '__main__':
             robot = Robot3D(num_links=NUM_OF_LINKS, link_radius=LINK_RADIUS, link_length=LINK_LENGTH)
 
 
-            goal_distances, _ = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, charging_port_normal, obstacle_points, mode, env_idx=i, interactive_window=args.interactive_window)
+            goal_distances, _ = main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_port_position, charging_port_normal, obstacle_points, sphere_positions, sphere_radius, sphere_velocities, mode, env_idx=i, interactive_window=args.interactive_window)

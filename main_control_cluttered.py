@@ -123,13 +123,13 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
             # safety margin for point cloud data observations
             safety_margin = 0.1
 
-            # start_time = time.time()
+            start_time = time.time()
 
 
 
             _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), goal_point, all_obstacle_points, safety_margin)
 
-            # print('time needed for MPPI:', time.time() - start_time)
+            print('time needed for MPPI:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
             selected_end_effectors = []
@@ -220,6 +220,8 @@ if __name__ == '__main__':
     model_type = 'jax'
 
     trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
+
+    # trained_model = "trained_models/torch_models_3d/grid_search_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
