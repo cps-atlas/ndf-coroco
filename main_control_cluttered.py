@@ -54,6 +54,7 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
     prediction_horizon = 20
 
+    # smaller horizon usually has better results for more links
     if NUM_OF_LINKS > 6:
         prediction_horizon = 7
 

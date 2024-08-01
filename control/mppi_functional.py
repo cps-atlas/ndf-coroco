@@ -37,7 +37,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
 
     """
     # self.key = jax.random.PRNGKey(111)
-    horizon = initial_horizon
+    horizon = initial_horizon 
     samples = samples
     robot_m = input_size
     dt = dt
@@ -85,6 +85,7 @@ def setup_mppi_controller(learned_CSDF = None, robot_n = 8, input_size = 8, init
     
     @jit
     def single_sample_rollout(goal, robot_states_init, perturbed_control, obstaclesX, perturbation, safety_margin, goal_normal):
+
         # Initialize robot_state
         robot_states = jnp.zeros((robot_n, horizon))
         robot_states = robot_states.at[:,0].set(robot_states_init)
