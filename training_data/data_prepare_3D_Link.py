@@ -142,7 +142,7 @@ if __name__ == '__main__':
 
     visualize_dataset_3d_single_link(dataset)
     # Save the entire dataset to a single file
-    with open('training_data/dataset_3d_single_link.pickle', 'wb') as f:
+    with open('training_data/dataset_3d_single_link_new.pickle', 'wb') as f:
         pickle.dump(dataset, f)
 
     

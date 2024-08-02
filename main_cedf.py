@@ -23,8 +23,8 @@ if no GPU
 
 def grid_search(train_dataloader, val_dataloader, device):
     # Define the hyperparameter search space
-    hidden_sizes = [16, 24, 32]
-    num_layers = [2, 3, 4]
+    hidden_sizes = [16, 24, 32, 64]
+    num_layers = [2, 3, 4, 5]
     # learning_rates = [0.001, 0.003, 0.005, 0.01]
     # batch_sizes = [128, 256]
 
@@ -72,7 +72,7 @@ following is training with pytorch
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
 
-    with open('training_data/dataset_3d_single_link.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link_new.pickle', 'rb') as f:
         training_data = pickle.load(f)
 
 
@@ -87,7 +87,7 @@ def main_torch(train_eikonal=False):
     train_dataloader = DataLoader(dataset, BATCH_SIZE, shuffle=True)  
 
     # load the validation dataset
-    with open('training_data/dataset_3d_single_link_validation.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link_validation1.pickle', 'rb') as f:
         validation_data = pickle.load(f)
 
 

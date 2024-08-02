@@ -13,7 +13,7 @@ if no GPU
 # jax.config.update('jax_platform_name', 'cpu')
 
 import jax.numpy as jnp
-from jax import jit, vmap, lax
+from jax import jit, vmap
 
 @jit
 def calculate_link_parameters(edge_lengths):
@@ -44,7 +44,7 @@ def calculate_link_parameters(edge_lengths):
 @jit
 def compute_edge_points(edge_lengths):
 
-    num_pts_per_edge = 30
+    num_pts_per_edge = 60
 
     link_radius = LINK_RADIUS
     link_length = LINK_LENGTH
@@ -255,54 +255,6 @@ def evaluate_model(jax_params, cable_lengths, obstacle_points):
 
 
 '''
-following function is the inference of learned C-SDF, for a single robot state
-'''
-
-# @jit
-# def evaluate_model(jax_params, cable_lengths, obstacle_points):
-
-#     # Predict signed distances
-#     @jit
-#     def apply_model(params, inputs):
-#         return CSDFNet_JAX(HIDDEN_SIZE, OUTPUT_SIZE, NUM_LAYERS).apply(params, inputs)
-
-#     # Ensure obstacle_points is a 2D array
-#     obstacle_points = jnp.array(obstacle_points, dtype=jnp.float32)
-#     if obstacle_points.ndim == 1:
-#         obstacle_points = obstacle_points.reshape(1, -1)
-
-#     link_radius = LINK_RADIUS
-#     link_length = LINK_LENGTH
-#     num_links = NUM_OF_LINKS
-
-#     rbt_configs = state_to_config(cable_lengths, link_radius, link_length)
-
-#     rbt_configs = rbt_configs.reshape(num_links, 2)
-    
-#     num_points = obstacle_points.shape[0]
-
-#     # Compute the transformations using forward kinematics
-#     transformations = forward_kinematics(cable_lengths, link_radius, link_length)
-
-#     # Convert transformations to an ndarray
-#     transformations = jnp.array(transformations)
-
-#     # Transform the points to all link frames simultaneously
-#     points_link = jax.vmap(lambda T: jnp.dot(jnp.linalg.inv(T), jnp.hstack((obstacle_points, jnp.ones((num_points, 1)))).T).T[:, :3])(transformations)
-
-#     # Prepare the input tensor for all links
-#     inputs_link = jnp.concatenate((jnp.repeat(rbt_configs, num_points, axis=0), jnp.reshape(points_link, (-1, 3))), axis=1)
-
-#     # Forward pass for all links
-#     outputs_link = apply_model(jax_params, inputs_link)
-#     distances_link = outputs_link[:, 0].reshape(num_links, num_points)
-
-#     # Find the minimum distances and closest link indices
-#     min_distances = jnp.min(distances_link, axis=0)
-
-#     return min_distances
-
-'''
 following are non JAX functions, mainly for plotting and dataset preparation
 '''
 
@@ -472,26 +424,10 @@ def main():
     # Define the states for multiple links
     states = jnp.array([[2.0, 2.0], [2.0, 2.0], [2.0, 2.0], [2.0, 2.0]])
 
-    # debug state
-    # states =  jnp.array([[1.005272,  1.0100657] ,[1.      ,  0.999946] , [0.9991085, 0.9851592], [0.9849205,
-    # 0.99     ]])
-
 
     # Define the initial base center and normal
     base_center = np.zeros(3)
     base_normal = np.array([0, 0, 1])
-
-    # end_center, end_normal, _ = compute_end_circle(states)
-
-    transformations = forward_kinematics(states)
-
-    # print('transmations:', transformations)
-
-    # point_ws = np.array([2,2,0])
-
-    # link_frames = transform_point_to_link_frame(point_ws, transformations)
-
-    # print('link_frames:', link_frames)
 
 
     # Plot the links
@@ -504,8 +440,6 @@ def main():
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
     ax.set_box_aspect((4, 4, 4))
-
-    # ax.view_init(elev=20, azim=45)  # Adjust the elevation and azimuth angles as needed
 
     # Add legend
     ax.legend(handles=legend_elements, loc='upper right')
