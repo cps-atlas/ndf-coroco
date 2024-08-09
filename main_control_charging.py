@@ -65,8 +65,8 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
     if mode == 'random':
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
 
-    num_steps = 400
-    goal_threshold = 0.25
+    num_steps = 300
+    goal_threshold = 0.3
 
     period = 16
 
@@ -293,24 +293,20 @@ if __name__ == '__main__':
 
     # Generate dynamic spheres
     sphere_positions = np.array([
-        np.array([3.0, -4.0, 4.5]),  # Sphere 1 position
         np.array([3.0, -4.0, 3.5]),   # Sphere 2 position
         np.array([3.0, -4.0, 2.5]),   # Sphere 3 position
         np.array([3.0, -4.0, 1.5]),   # Sphere 3 position
         np.array([3.0, -4.0, 0.5]),   # Sphere 3 position
-        np.array([2.0, 4.0, 4.5]),  # Sphere 1 position
         np.array([2.0, 4.0, 3.5]),   # Sphere 2 position
         np.array([2.0, 4.0, 2.5]),   # Sphere 3 position
         np.array([2.0, 4.0, 1.5]),   # Sphere 3 position
         np.array([2.0, 4.0, 0.5])   # Sphere 3 position
     ])
     sphere_velocities = np.array([
-        np.array([0.0, 1.0, 0.0]),  # Sphere 1 velocity
         np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
         np.array([0.0, 1.0, 0.0]),  # Sphere 1 velocity
         np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
         np.array([0.0, 1.0, 0.0]),  # Sphere 2 velocity
-        np.array([0.0, -1.0, 0.0]),  # Sphere 1 velocity
         np.array([0.0, -1.0, 0.0]),  # Sphere 2 velocity
         np.array([0.0, -1.0, 0.0]),  # Sphere 1 velocity
         np.array([0.0, -1.0, 0.0]),  # Sphere 2 velocity
