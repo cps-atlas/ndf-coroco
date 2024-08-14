@@ -121,6 +121,8 @@ def main(jax_params, wall_positions, obstacle_shapes, obstacle_points, goal_poin
 
             all_obstacle_points = np.concatenate((obstacle_points, sphere_points), axis=0)
 
+            # print('num_of_obstalce_points:', all_obstacle_points.shape)
+
             # print('env_points_num:', all_obstacle_points.shape)
 
             # safety margin for point cloud data observations
@@ -222,9 +224,9 @@ if __name__ == '__main__':
 
     model_type = 'jax'
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
+    # trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
-    #trained_model = "trained_models/torch_models_3d/grid_search_5_32.pth"
+    trained_model = "trained_models/torch_models_3d/grid_search_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
