@@ -188,28 +188,28 @@ def surface_point_csdf_check(configuration, cable_lengths, link_radius, link_len
     else:
         print("Surface distances are not close to 0. Training may need improvement.")
 
-def compute_safety_margin(net, val_dataloader):
-    predicted_distances = []
-    true_distances = []
-    for val_inputs, val_targets in val_dataloader:
-        val_inputs = val_inputs.detach().numpy()  # Detach and convert to numpy array
-        val_inputs = jnp.array(val_inputs)
-        val_outputs = net.apply(net.params, val_inputs).squeeze()
-        # Store the predicted and true distances
-        predicted_distances.extend(val_outputs.tolist())
-        true_distances.extend(val_targets.detach().numpy())  # Detach and convert to numpy array
+# def compute_safety_margin(net, val_dataloader):
+#     predicted_distances = []
+#     true_distances = []
+#     for val_inputs, val_targets in val_dataloader:
+#         val_inputs = val_inputs.detach().numpy()  # Detach and convert to numpy array
+#         val_inputs = jnp.array(val_inputs)
+#         val_outputs = net.apply(net.params, val_inputs).squeeze()
+#         # Store the predicted and true distances
+#         predicted_distances.extend(val_outputs.tolist())
+#         true_distances.extend(val_targets.detach().numpy())  # Detach and convert to numpy array
 
-    # Convert distances to numpy arrays
-    predicted_distances = np.array(predicted_distances)
-    true_distances = np.array(true_distances)
+#     # Convert distances to numpy arrays
+#     predicted_distances = np.array(predicted_distances)
+#     true_distances = np.array(true_distances)
 
-    # Compute the safety margin for each validation sample
-    safety_margins = np.maximum(0, true_distances - predicted_distances)
+#     # Compute the safety margin for each validation sample
+#     safety_margins = np.maximum(0, true_distances - predicted_distances)
 
-    # Compute the average safety margin
-    avg_safety_margin = np.mean(safety_margins)
+#     # Compute the average safety margin
+#     avg_safety_margin = np.mean(safety_margins)
 
-    return avg_safety_margin
+#     return avg_safety_margin
 
 
 def measure_inference_time(net, configurations, cable_lengths, points, model_type='jax', num_iterations=100):
@@ -248,27 +248,9 @@ def main():
     # trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
     # paper table prepare
-    trained_model = "trained_models/torch_models_3d/grid_search_4_16.pth"
+    trained_model = "trained_models/torch_models_3d/grid_search_mue_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
-
-    # load the validation dataset
-    with open('training_data/dataset_3d_single_link_validation1.pickle', 'rb') as f:
-        validation_data = pickle.load(f)
-
-
-    # Extract configurations, workspace points, and distances from the dataset
-    configurations = np.array([entry['configuration'] for entry in validation_data])
-    points = np.array([entry['point'] for entry in validation_data])
-    distances = np.array([entry['distance'] for entry in validation_data])
-
-    val_dataset = SoftRobotDataset(configurations, points, distances)
-    val_dataloader = DataLoader(val_dataset, BATCH_SIZE)
-
-    safety_margin = compute_safety_margin(net, val_dataloader)
-
-    # Print the safety margin
-    print(f"Safety Margin: {safety_margin:.4f}")
 
     # Define the cable lengths for each link
     cable_lengths = jnp.array([[1.8, 2.0], [1.9, 1.9], [2.1, 2.1], [2.2, 2.0]])

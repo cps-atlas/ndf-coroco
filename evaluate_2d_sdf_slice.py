@@ -99,15 +99,17 @@ def main():
     link_length = LINK_LENGTH
 
     # Define the state for a single link
-    state = jnp.array([[2.0, 2.0]])  # Adjust as needed for bending
+    state = jnp.array([[2.0, 1.8]])  # Adjust as needed for bending
 
     # Compute the surface points of the robot shape
     surface_points = compute_surface_points(state, link_radius, link_length, num_points_per_circle=70)
     surface_points = np.concatenate(surface_points, axis=0)
 
     # Plot the surface points of the robot
-    ax.scatter(surface_points[:, 0], surface_points[:, 1], surface_points[:, 2],
-               s=10, c='black', alpha=1, label='Robot Surface')
+    # ax.scatter(surface_points[:, 0], surface_points[:, 1], surface_points[:, 2],
+    #            s=10, c='black', alpha=1, label='Robot Surface')
+    
+    plot_links_3d(state, link_radius, link_length, ax)
 
     # Plot the 3D slice level set
     plot_3d_slice_level_set(surface_points, ax)
