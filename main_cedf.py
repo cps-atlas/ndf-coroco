@@ -23,7 +23,7 @@ if no GPU
 
 def grid_search(train_dataloader, val_dataloader, device):
     # Define the hyperparameter search space
-    hidden_sizes = [16, 32]
+    hidden_sizes = [16, 24, 32]
     num_layers = [2, 3, 4, 5]
     # learning_rates = [0.001, 0.003, 0.005, 0.01]
     # batch_sizes = [128, 256]
@@ -46,7 +46,7 @@ def grid_search(train_dataloader, val_dataloader, device):
         # Train and evaluate the model
         # net, val_loss = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05)
 
-        net, val_loss = train_eikonal_mue(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_mue=0.5)
+        net, val_loss = train_eikonal_mue(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_mue=2.0)
 
         print('resulting loss:', val_loss)
 
@@ -74,7 +74,7 @@ following is training with pytorch
 def main_torch(train_eikonal=False):
     # Load the saved dataset from the pickle file
 
-    with open('training_data/dataset_3d_single_link_new.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link_train.pickle', 'rb') as f:
         training_data = pickle.load(f)
 
 
@@ -89,7 +89,7 @@ def main_torch(train_eikonal=False):
     train_dataloader = DataLoader(dataset, BATCH_SIZE, shuffle=True)  
 
     # load the validation dataset
-    with open('training_data/dataset_3d_single_link_validation1.pickle', 'rb') as f:
+    with open('training_data/dataset_3d_single_link_validation.pickle', 'rb') as f:
         validation_data = pickle.load(f)
 
 
@@ -113,7 +113,7 @@ def main_torch(train_eikonal=False):
         best_model, best_hyperparams = grid_search(train_dataloader, val_dataloader, device)
 
         # net, _ = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05)
-        # net, _ = train_eikonal_mue(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_mue=0.5)
+        # net, _ = train_eikonal_mue(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_mue=2.0)
         # Save the trained model with Eikonal regularization
         # torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_mue_train.pth")
     else:

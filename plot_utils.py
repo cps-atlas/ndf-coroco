@@ -253,7 +253,7 @@ def plot_env_3d(wall_positions, obstacle_shapes, goal_position, sphere_positions
     # ax.scatter(obstacle_points[:, 0], obstacle_points[:, 1], obstacle_points[:, 2], c='black', s=5)
 
     # Plot goal position
-    ax.scatter(*goal_position, c='blue', marker='*', s=200)
+    ax.scatter(*goal_position, c='blue', marker='*', s=500)
 
     plt.tight_layout()
 
@@ -326,7 +326,7 @@ def plot_random_env_3d(obstacle_positions, goal_point, obst_radius, ax, plt_show
         ax.plot_surface(x, y, z, color='red', alpha=0.6)
 
     # Plot goal position
-    ax.scatter(*goal_point, c='blue', marker='*', s=200)
+    ax.scatter(*goal_point, c='blue', marker='*', s=500)
 
     # Remove axis lines, ticks, and numbers
     ax.set_axis_off()
@@ -404,7 +404,10 @@ def plot_and_save_realsitic_env():
     base_center = np.zeros(3)
     base_normal = np.array([0, 0, 1])
 
-    cable_lengths = jnp.array([[2.0, 2.0], [2.0, 2.0], [2.0, 2.], [2.0, 2.0], [2.0, 2.0]])
+    # cable_lengths = jnp.array([[2.0, 2.0], [2.0, 2.0], [2.0, 2.], [2.0, 2.0], [2.0, 2.0]])
+
+    # plot a specific configuration
+    cable_lengths = jnp.array([[2.0, 2.1], [2.1, 2.0], [1.9, 2.], [1.9, 1.9], [2.0, 2.0]])
 
     link_radius = LINK_RADIUS
     link_length = LINK_LENGTH
