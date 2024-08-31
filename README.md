@@ -50,7 +50,7 @@ evaluate_heatmap.py
 *   To customize the continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the file:
 
 ```
-data_prepare_3D_link.py
+training_data/data_prepare_3D_link.py
 ```
     
 to prepare the dataset for the customized continuum robot link. 
