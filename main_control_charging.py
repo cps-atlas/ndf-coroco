@@ -65,7 +65,7 @@ def main(jax_params, wall_positions, robot, dt, charging_port_shape, charging_po
     if mode == 'random':
         control_signals = np.random.uniform(-0.12, 0.12, size=2 * robot.num_links)
 
-    num_steps = 300
+    num_steps = 500
     goal_threshold = 0.3
 
     period = 16

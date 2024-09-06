@@ -44,24 +44,30 @@ To evaluate and visualize the learned CEDF model, run the file:
 ```
 evaluate_heatmap.py
 ```
+and
+```
+evaluate_2d_sdf_slice.py
+```
 
 *   Adjust training parameters in training/config_3D.py
 *   Default training dataset is in training_data/
-*   To customize the continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the file:
+*   To customize the training dataset for different continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the file:
 
 ```
-training_data/data_prepare_3D_link.py
+data_prepare_3D_link.py
 ```
     
 to prepare the dataset for the customized continuum robot link. 
 
 
 
-## 🤖 Continuum Robot Navigation Simulation
+## 🤖 Continuum Robot Navigation 
 
 Note: The MPPI algorithm is computationally expensive. For real-time performance, we recommend using an NVIDIA RTX 3090 GPU or better. If no GPU is available, uncomment the following line in the relevant scripts:
 
+```
 jax.config.update('jax_platform_name', 'cpu')
+```
 
 
 1. Dynamic Environment with Multiple Spheres, run the file
@@ -69,7 +75,7 @@ jax.config.update('jax_platform_name', 'cpu')
 main_control_sphere.py
 ```
 
-2. Cluttered Environment: 
+2. Cluttered Environment with multiple obstacles: 
 ```
 main_control_cluttered.py
 ```
@@ -79,7 +85,7 @@ main_control_cluttered.py
 main_control_charging.py
 ```
 
-Add --no_interactive flag to disable the interactive window:
+Add --no_interactive flag to disable the interactive window for all the above navigation simulations:
 ```
 python main_control_sphere.py --no_interactive
 ```
@@ -89,7 +95,7 @@ Customize simulation settings in robot_config.py:
 *  Environment details (number of spheres, number of environments, ...)
 
 
-The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/eikonal_4_16.pth
+The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/grid_search_mue_4_16.pth
 
 ## 📊 Results
 

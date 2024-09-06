@@ -116,7 +116,7 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, interactive_windo
             key, subkey = jax.random.split(key)
 
             # safety margin for sphere dynamical obstacles
-            safety_margin = 0.1 + env.obst_radius
+            safety_margin = 0.05 + env.obst_radius
 
             # start_time = time.time()
             _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions, safety_margin, None)
@@ -197,7 +197,7 @@ if __name__ == '__main__':
 
     model_type = 'jax'
 
-    trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
+    trained_model = "trained_models/torch_models_3d/grid_search_mue_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 

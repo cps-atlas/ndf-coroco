@@ -8,7 +8,7 @@ MAX_CABLE_LENGTH = LINK_LENGTH * 1.2
 
 NUM_OF_LINKS = 4
 
-# Environment Configuration for the random dyanmical env with sphere obsatcles
+# Environment Configuration for simulation
 NUM_ENVIRONMENTS = 10
 
 NUM_SPHERES = 8

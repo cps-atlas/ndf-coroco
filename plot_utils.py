@@ -29,7 +29,7 @@ def plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt
         else:
             plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, linewidth=3)
     
-    plt.axhline(y=0.1, color='black', linestyle='--', linewidth=3, label='Safety Margin')
+    plt.axhline(y=0.05, color='black', linestyle='--', linewidth=3, label='Safety Margin')
     
     plt.xlabel('Time (s)', fontsize=18)
     plt.ylabel('Distance', fontsize=18)
