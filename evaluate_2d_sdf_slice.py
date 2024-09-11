@@ -104,6 +104,7 @@ def evaluate_single_link(jax_params, cable_lengths, points):
 # this plots the learned heatmap
 def plot_3d_learned_slice_heatmap(net, cable_lengths, ax, x_slice=0, resolution=100, level_set_values=[0.2, 0.25, 0.3, 0.35, 0.4]):
     y_min, y_max, z_min, z_max = -1.5, 1.5, -1, 3
+    #y_min, y_max, z_min, z_max = -2, 1, -1, 3
     
     # Generate 2D grid for the slice
     y = np.linspace(y_min, y_max, resolution)
@@ -136,6 +137,7 @@ def plot_3d_learned_slice_heatmap(net, cable_lengths, ax, x_slice=0, resolution=
 def plot_3d_learned_slice_level_set(net, cable_lengths, ax, x_slice=0, resolution=100, level_set_values=[0.2, 0.25, 0.3, 0.35, 0.4]):
     # Generate 2D grid for the slice
     y, z = np.linspace(-2, 2, resolution), np.linspace(-1, 3, resolution)
+    
     Y, Z = np.meshgrid(y, z)
     
     # Create 3D points for the slice and evaluate learned distances
@@ -273,7 +275,7 @@ def main():
     # trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
     # paper table prepare
-    trained_model = "trained_models/torch_models_3d/grid_search_mue_4_16.pth"
+    trained_model = "trained_models/torch_models_3d/grid_search_moe_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 

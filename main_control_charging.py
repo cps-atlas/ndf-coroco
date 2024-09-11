@@ -276,6 +276,8 @@ if __name__ == '__main__':
 
     trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
+    # trained_model = "trained_models/torch_models_3d/grid_search_moe_4_16.pth"
+
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
     jax_params = net.params
@@ -317,7 +319,7 @@ if __name__ == '__main__':
 
 
 
-    for i in range(num_environments):
+    for i in range(1):
         # Define the fixed x position for the charging port
         x_position = wall_position[0]
         

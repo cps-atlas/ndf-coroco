@@ -4,7 +4,7 @@ import numpy as np
 
 import torch
 from network.csdf_net import CSDFNet
-from training.csdf_training_3D import train_3d, train_with_eikonal_3d, train_eikonal_mue
+from training.csdf_training_3D import train_3d, train_with_eikonal_3d, train_eikonal_moe
 from training.config_3D import *
 
 from training_data.dataset import SoftRobotDataset
@@ -46,12 +46,12 @@ def grid_search(train_dataloader, val_dataloader, device):
         # Train and evaluate the model
         # net, val_loss = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05)
 
-        net, val_loss = train_eikonal_mue(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_mue=2.0)
+        net, val_loss = train_eikonal_moe(net, train_dataloader, val_dataloader, NUM_EPOCHS, learning_rate, device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_moe=2.0)
 
         print('resulting loss:', val_loss)
 
         # Save the trained model with the current hyperparameters
-        model_name = f"grid_search_mue_{num_layer}_{hidden_size}.pth"
+        model_name = f"grid_search_moe_{num_layer}_{hidden_size}.pth"
         torch.save(net.state_dict(), f"trained_models/torch_models_3d/{model_name}")
 
         # Update the best hyperparameters and model if validation loss improves
@@ -113,9 +113,9 @@ def main_torch(train_eikonal=False):
         best_model, best_hyperparams = grid_search(train_dataloader, val_dataloader, device)
 
         # net, _ = train_with_eikonal_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05)
-        # net, _ = train_eikonal_mue(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_mue=2.0)
+        # net, _ = train_eikonal_moe(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4, lambda_eikonal=0.05, lambda_moe=2.0)
         # Save the trained model with Eikonal regularization
-        # torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_mue_train.pth")
+        # torch.save(net.state_dict(), "trained_models/torch_models_3d/eikonal_moe_train.pth")
     else:
         print('training without eikonal start!')
         net = train_3d(net, train_dataloader, val_dataloader, NUM_EPOCHS, LEARNING_RATE, device=device, loss_threshold=1e-4)

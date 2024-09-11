@@ -248,7 +248,7 @@ def main():
     # trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
     # paper table prepare
-    trained_model = "trained_models/torch_models_3d/grid_search_mue_4_16.pth"
+    trained_model = "trained_models/torch_models_3d/grid_search_moe_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
 
