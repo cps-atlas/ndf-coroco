@@ -16,12 +16,12 @@ If you find our work useful, please consider citing our paper:
 ```
 
 
-# 🚀 Quick Start
+## 🚀 Quick Start
 Clone the repository: 
 
 ```
-git clone 
-cd 
+git clone https://github.com/cps-atlas/ndf-coroco.git
+cd ndf-coroco
 ```
 
 ## 📦 Dependencies
@@ -32,6 +32,7 @@ conda create -n environment.yaml
 conda activate soft_neural_cedf
 ```
 
+You can install miniconda from [here](https://docs.conda.io/en/latest/miniconda.html). 
 
 ## 🧠 Neural CEDF Training
 
