@@ -39,29 +39,26 @@ To train the neural CEDF, run the file:
 ```
 main_cedf.py
 ```
+The training parameters can be adjusted in training/config_3D.py. 
+
 
 To evaluate and visualize the learned CEDF model, run the file: 
 ```
-evaluate_heatmap.py
-```
-and
-```
-evaluate_2d_sdf_slice.py
+evaluate_heatmap.py, evaluate_2d_sdf_slice.py
 ```
 
-*   Adjust training parameters in training/config_3D.py
-*   Default training dataset is in training_data/
+*   Default training dataset is saved in training_data/
 *   To customize the training dataset for different continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the file:
 
 ```
-data_prepare_3D_link.py
+training_data/data_prepare_3D_link.py
 ```
     
 to prepare the dataset for the customized continuum robot link. 
 
 
 
-## 🤖 Continuum Robot Navigation 
+## 🤖 Continuum Robot Safe Motion Planning with MPPI 
 
 Note: The MPPI algorithm is computationally expensive. For real-time performance, we recommend using an NVIDIA RTX 3090 GPU or better. If no GPU is available, uncomment the following line in the relevant scripts:
 
@@ -95,7 +92,7 @@ Customize simulation settings in robot_config.py:
 *  Environment details (number of spheres, number of environments, ...)
 
 
-The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/grid_search_mue_4_16.pth
+The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/grid_search_moe_4_16.pth
 
 ## 📊 Results
 
