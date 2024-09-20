@@ -10,10 +10,10 @@ Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org)
 
 This repository contains the official implementation for the paper "Neural Configuration Distance Function for Continuum Robot Control".
 
-If you find our work useful, please consider citing our paper:
+<!-- If you find our work useful, please consider citing our paper:
 ```
 @article{}
-```
+``` -->
 
 
 ## 🚀 Quick Start
@@ -91,6 +91,9 @@ python main_control_sphere.py --no_interactive
 Customize simulation settings in robot_config.py: 
 *  Number of robot links
 *  Environment details (number of spheres, number of environments, ...)
+
+
+Note: In our simulations, we rely solely on the current observations of dynamic obstacles without explicitly predicting their future trajectories. More advanced techniques could be integrated in future work to improve dynamic obstacle handling.
 
 
 The default N-CEDF model for navigation simualtion is trained_models/torch_models_3d/grid_search_moe_4_16.pth
