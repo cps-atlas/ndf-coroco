@@ -118,10 +118,10 @@ def main(jax_params, env, robot, dt, mode='random', env_idx=0, interactive_windo
             # safety margin for sphere dynamical obstacles
             safety_margin = 0.05 + env.obst_radius
 
-            # start_time = time.time()
+            start_time = time.time()
             _, selected_robot_states, control_signals, U = mppi(subkey, U, robot.state.flatten(), env.goal_point, env.obstacle_positions, safety_margin, None)
 
-            # print('mppi_solver_time:', time.time() - start_time)
+            print('mppi_solver_time:', time.time() - start_time)
 
             # Plot the trajectory of the end-effector along the selected states
             selected_end_effectors = []

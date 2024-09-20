@@ -25,7 +25,7 @@ def plot_distances(goal_distances, estimated_obstacle_distances, obst_radius, dt
 
     for i in range(num_obstacles):
         if i == 0:
-            plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, linewidth=3, label='Distance to Obstacles')
+            plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, linewidth=3, label='Estimated Distance to Obstacles')
         else:
             plt.plot(time_steps, estimated_obstacle_distances[:, i] - obst_radius, linewidth=3)
     

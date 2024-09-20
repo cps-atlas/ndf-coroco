@@ -1,7 +1,6 @@
 import torch
 
 import jax
-from jax import jit
 import jax.numpy as jnp
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,10 +15,6 @@ from flax.core import freeze
 from robot_config import *
 
 import time
-
-from training_data.dataset import SoftRobotDataset
-
-from torch.utils.data import DataLoader
 
 '''
 if no GPU
@@ -247,7 +242,6 @@ def main():
 
     # trained_model = "trained_models/torch_models_3d/eikonal_train_4_16.pth"
 
-    # paper table prepare
     trained_model = "trained_models/torch_models_3d/grid_search_moe_4_16.pth"
 
     net = load_learned_csdf(model_type, trained_model_path = trained_model)
