@@ -36,6 +36,16 @@ You can install miniconda from [here](https://docs.conda.io/en/latest/miniconda.
 
 ## 🧠 Neural CEDF Training
 
+*   Default training dataset is saved in training_data/
+*   To preparethe training dataset for the continuum robot link CEDF, run the file:
+
+```
+training_data/data_prepare_3D_link.py
+```
+    
+* To customize the training dataset for different continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH). 
+
+
 To train the neural CEDF, run the file:
 ```
 main_cedf.py
@@ -47,16 +57,6 @@ To evaluate and visualize the learned CEDF model, run the file:
 ```
 evaluate_heatmap.py, evaluate_2d_sdf_slice.py
 ```
-
-*   Default training dataset is saved in training_data/
-*   To customize the training dataset for different continuum robot link size, modify robot_config.py (e.g., LINK_RADIUS, LINK_LENGTH), and run the file:
-
-```
-training_data/data_prepare_3D_link.py
-```
-    
-to prepare the dataset for the customized continuum robot link. 
-
 
 
 ## 🤖 Continuum Robot Safe Motion Planning with MPPI 
