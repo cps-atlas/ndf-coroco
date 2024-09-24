@@ -1,4 +1,4 @@
-Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org)
+Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org/abs/2409.13865)
 ===========================================
 
 
@@ -10,10 +10,18 @@ Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org)
 
 This repository contains the official implementation for the paper "Neural Configuration Distance Function for Continuum Robot Control".
 
-<!-- If you find our work useful, please consider citing our paper:
+If you find our work useful, please consider citing our paper:
 ```
-@article{}
-``` -->
+@article{long2024neural_df_continuum_robot,
+      title={Neural Configuration Distance Function for Continuum Robot Control}, 
+      author={Kehan Long and Hardik Parwana and Georgios Fainekos and Bardh Hoxha and Hideki Okamoto and Nikolay Atanasov},
+      year={2024},
+      eprint={2409.13865},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2409.13865}, 
+}
+``` 
 
 
 ## 🚀 Quick Start
