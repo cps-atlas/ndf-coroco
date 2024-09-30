@@ -18,7 +18,6 @@ class CSDFNet(nn.Module):
         return x
     
 
-
 class CSDFNet_JAX(jnn.Module):
     hidden_size: int
     output_size: int
