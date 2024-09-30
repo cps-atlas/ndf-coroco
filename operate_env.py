@@ -1,5 +1,4 @@
 
-
 class Environment:
     def __init__(self, obstacle_positions, obstacle_velocities, obst_radius, goal_point, period=4):
         self.num_obstacles = len(obstacle_positions)

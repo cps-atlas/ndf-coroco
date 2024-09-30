@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 from utils_3d import *
 
+
 class Robot3D:
     def __init__(self, num_links, link_radius, link_length, base_center=jnp.zeros(3), base_normal=jnp.array([0, 0, 1])):
         self.num_links = num_links

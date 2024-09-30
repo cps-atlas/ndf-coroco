@@ -10,7 +10,6 @@ import time
 import argparse
 
 
-
 from utils_3d import * 
 from training.config_3D import *
 from plot_utils import *

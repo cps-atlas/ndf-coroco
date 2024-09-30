@@ -1,7 +1,6 @@
 Neural CEDF for Continuum Robot Control [[Paper]](https://arxiv.org/abs/2409.13865)
 ===========================================
 
-
 |   |   |   |
 |:---:|:---:|:---:|
 | ![](gif_results/cluttered_link4.gif) | ![](gif_results/cluttered_link5.gif) | ![](gif_results/cluttered_link7.gif) |

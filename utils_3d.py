@@ -11,7 +11,6 @@ import jax
 if no GPU
 '''
 # jax.config.update('jax_platform_name', 'cpu')
-
 import jax.numpy as jnp
 from jax import jit, vmap
 

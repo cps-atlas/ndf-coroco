@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from utils_3d import *

@@ -11,6 +11,5 @@ NUM_OF_LINKS = 4
 # Environment Configuration for simulation
 NUM_ENVIRONMENTS = 10
 
-
 NUM_SPHERES = 8
 SPHERE_RADIUS = 0.7
