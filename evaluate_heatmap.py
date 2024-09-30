@@ -9,11 +9,9 @@ from training.config_3D import *
 
 import pickle
 from utils_3d import *
-
 from flax.core import freeze
 
 from robot_config import *
-
 import time
 
 '''

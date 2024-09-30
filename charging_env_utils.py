@@ -9,8 +9,6 @@ from utils_3d import *
 from robot_config import *
 
 
-
-
 def generate_charging_port_env_3d(corridor_pos, corridor_size, charging_port_position, charging_port_size, obst_points_per_unit):
     # Generate corridor walls (unchanged from original)
     wall_positions = [
